@@ -39,8 +39,14 @@ Também é possível abrir `index.html` no navegador (`file://`), mas recomenda-
 
 | Perfil | E-mail | Senha |
 | --- | --- | --- |
-| Comprador | `comprador@frionex.com` | `12345678` |
-| Vendedor | `vendedor@frionex.com` | `12345678` |
+| Comprador (Sombrio/SC) | `comprador@frionex.com` | `12345678` |
+| Vendedor · Vendo Ar-Condicionado (Sombrio/SC) | `vendedor@frionex.com` | `12345678` |
+| Vendedor · Clima Sul Refrigeração (Criciúma/SC) | `climasul@frionex.com` | `12345678` |
+| Vendedor · Gaúcha Ar & Peças (Porto Alegre/RS) | `gaucha@frionex.com` | `12345678` |
+| Vendedor · Paraná Climatização (Curitiba/PR) | `parana@frionex.com` | `12345678` |
+| Vendedor · Frio Paulista Distribuidora (São Paulo/SP) | `friopaulista@frionex.com` | `12345678` |
+
+"Esqueci minha senha" funciona: o código de 6 dígitos aparece num e-mail simulado na própria tela.
 
 A tela de login tem botões que preenchem essas credenciais automaticamente. Também é possível criar uma conta nova em `cadastro.html`.
 
@@ -54,7 +60,30 @@ A tela de login tem botões que preenchem essas credenciais automaticamente. Tam
 | `FRETEGRATIS` | Zera o frete |
 | `BEMVINDO15` | R$ 15,00 de desconto |
 
-Regras do protótipo: frete grátis para subtotal a partir de R$ 300,00 (abaixo disso, R$ 29,90) e **7% de desconto no PIX**.
+Regras do protótipo: **7% de desconto no PIX** e frete calculado pela distância (veja "Regionalização").
+
+---
+
+## Regionalização (o diferencial do Frionex)
+
+O objetivo do sistema é aproximar quem compra de quem vende peças na mesma região. Isso aparece em todo o site (`assets/js/regiao.js`):
+
+- **Região do comprador**: "Enviar para…" no topo. Vem do CEP do endereço da conta ou é escolhida pelo usuário (CEP ou cidade). Fica salva em `frionex:regiao`.
+- **Distância até cada vendedor**: cada loja tem uma cidade; a distância é a linha reta entre as cidades × 1,25 (estimativa de estrada). Aparece nos cards ("Criciúma/SC · a 67 km"), na página do produto e na loja.
+- **Filtro "Distância de você"** no catálogo (na minha cidade, até 100 km, até 300 km, no meu estado, Região Sul), ordenação **"Mais próximos de mim"** e a seção **Perto de você** na home (`index.html?perto=1`).
+- **Frete por distância**, um envio por vendedor:
+
+| Distância | Frete | Prazo |
+| --- | --- | --- |
+| até 15 km (mesma cidade) | grátis · retirada na loja | mesmo dia / 1 dia útil |
+| até 100 km | R$ 9,90 (grátis acima de R$ 150) | 1 dia útil |
+| até 300 km | R$ 19,90 (grátis acima de R$ 300) | 1 a 2 dias úteis |
+| até 600 km | R$ 29,90 (grátis acima de R$ 300) | 2 a 4 dias úteis |
+| até 1.200 km | R$ 44,90 | 4 a 7 dias úteis |
+| acima | R$ 64,90 | 6 a 10 dias úteis |
+
+- **"Também vendido perto de você"**: na página do produto, o mesmo tipo de peça em outros vendedores, do mais perto para o mais longe — dá para comparar preço × distância × frete.
+- **Retirada na loja** no checkout só aparece quando todos os vendedores do carrinho estão a até 30 km.
 
 ---
 
@@ -71,7 +100,8 @@ Regras do protótipo: frete grátis para subtotal a partir de R$ 300,00 (abaixo 
 | `carrinho.html` | Carrinho | Quantidades, remoção, cupom, frete por CEP, resumo |
 | `checkout.html` | Checkout | Endereço, envio/retirada, PIX/cartão/boleto, revisão e confirmação |
 | `pedidos.html` | Meus pedidos | Filtros, rastreio em modal, "comprar novamente" |
-| `vender.html` | Painel do vendedor | Só para contas de vendedor: anunciar produto (com foto), editar, excluir, editar dados da loja e ver estatísticas |
+| `vender.html` | Painel do vendedor | Só para contas de vendedor. **Anúncios**: anunciar (com foto), editar, excluir, cidade da loja. **Vendas**: pedidos recebidos, confirmar pagamento, enviar com código de rastreio, confirmar entrega, cancelar |
+| `mensagens.html` | Mensagens | Chat comprador ↔ vendedor ligado ao produto ou pedido, respostas rápidas, contador de não lidas no topo |
 
 O botão **Vender** do topo aparece para visitantes (leva ao cadastro de vendedor) e para vendedores (abre o painel); para compradores logados ele some. Os produtos anunciados ficam salvos no navegador (`frionex:produtos`) e já aparecem no catálogo, na busca e na página da loja.
 
@@ -146,6 +176,11 @@ Enquanto não há banco, os dados do usuário ficam no `localStorage`:
 | `frionex:favoritos` | IDs de produtos favoritados |
 | `frionex:cupom` | Cupom aplicado |
 | `frionex:prefs` | Preferências de privacidade/notificações |
+| `frionex:regiao` | CEP ou cidade escolhida pelo comprador |
+| `frionex:produtos` / `frionex:produtos-removidos` | Anúncios criados/editados/excluídos pelos vendedores |
+| `frionex:vendedores` | Lojas criadas/editadas (nome, cidade, descrição) |
+| `frionex:pedidos-status` | Status e código de rastreio atualizados pelo vendedor |
+| `frionex:mensagens` | Conversas do chat |
 
 Para reiniciar a demonstração, limpe os dados do site no navegador ou execute `localStorage.clear()` no console.
 
@@ -222,9 +257,9 @@ Pontos de atenção na integração:
 
 ## Próximos passos sugeridos
 
-1. Criar o registro de `vendedor` no cadastro e um painel para publicar/editar produtos.
-2. Implementar tela de conversas entre comprador e vendedor.
-3. Implementar avaliação real a partir de pedidos entregues.
+1. Trocar a tabela de cidades por uma API de CEP (ex.: ViaCEP) e coordenadas reais, e o frete estimado por uma cotação real (Correios/transportadoras).
+2. Implementar avaliação real a partir de pedidos entregues.
+3. Notificações (e-mail/push) para novas vendas e mensagens.
 4. Criar painel administrativo (aprovação de vendedores, mediação, categorias).
 5. Integrar gateway de pagamento e cálculo real de frete.
 6. Modelar e criar o banco de dados a partir do modelo lógico, usando os contratos de `api.js` como referência.
@@ -261,7 +296,7 @@ Cores tiradas da prototipação (`_proto.pdf`):
 
 ## Créditos das fotos
 
-As fotos dos produtos (exceto o Samsung WindFree) são carregadas do Wikimedia Commons, então é preciso internet para elas aparecerem.
+As fotos dos produtos foram baixadas do Wikimedia Commons e ficam em `assets/img/produtos/` (o site funciona sem internet). Créditos e licenças:
 
 | Produto | Arquivo | Autor | Licença |
 | --- | --- | --- | --- |

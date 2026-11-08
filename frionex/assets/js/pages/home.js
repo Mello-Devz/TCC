@@ -12,8 +12,11 @@
   const state = {
     q: params.get('q') || '',
     categoria: params.get('categoria') || '',
+    // filtros do "ramo" da categoria escolhida
+    sel: { subcategorias: params.get('sub') ? [params.get('sub')] : [], btus: [], tecnologias: [], ciclos: [], marcas: [], estados: [] },
     oferta: params.get('oferta') === '1',
     favoritos: params.get('favoritos') === '1',
+    distancia: params.get('perto') === '1' ? '100' : (params.get('dist') || ''),
     ordenacao: 'relevancia',
     precoMin: null,
     precoMax: null
@@ -71,44 +74,194 @@
     restart();
   }
 
-  /* ---------------- filtros ---------------- */
-  function hydrateCounts() {
-    const produtos = API.getProdutosSync();
-    document.querySelectorAll('[data-count]').forEach((el) => {
-      const [tipo, valor] = el.dataset.count.split(':');
-      let total = 0;
-      if (tipo === 'categoria') {
-        const cat = API.getCategoriasSync().find((c) => c.slug === valor);
-        total = cat ? produtos.filter((p) => p.id_categoria === cat.id).length : 0;
-      } else if (tipo === 'btus') {
-        total = produtos.filter((p) => Number(p.btu) === Number(valor)).length;
-      } else if (tipo === 'marca') {
-        total = produtos.filter((p) => API.normalize(p.marca) === API.normalize(valor)).length;
-      } else if (tipo === 'tecnologia') {
-        total = produtos.filter((p) => API.normalize(p.tecnologia) === API.normalize(valor)).length;
-      } else if (tipo === 'ciclo') {
-        total = produtos.filter((p) => API.normalize(p.ciclo) === API.normalize(valor)).length;
-      }
-      el.textContent = total ? `(${total})` : '(0)';
+  /* ---------------- filtros em árvore ----------------
+     Nível 1: categoria. Ao escolher, abre o "ramo" com os filtros
+     específicos daquele nicho (tipo, BTUs, tecnologia, marca...). */
+  const CATEGORIAS = API.getCategoriasSync();
+  const R = window.FrionexRegiao;
+  const regiao = R ? R.atual() : null;
+  const distDe = (p) => (R ? R.distanciaProduto(p, regiao) : null);
+  const naFaixa = (p, faixa) => !faixa || !R || !regiao || R.dentroDaFaixa(p, faixa, regiao);
+
+  // Filtros de cada nicho: [chave, título]
+  const FACETS = {
+    'ar-condicionado': [['subcategorias', 'Tipo'], ['btus', 'Capacidade'], ['tecnologias', 'Tecnologia'], ['ciclos', 'Ciclo'], ['marcas', 'Marca'], ['estados', 'Condição']],
+    pecas: [['subcategorias', 'Tipo de peça'], ['btus', 'Compatível com'], ['tecnologias', 'Tecnologia'], ['marcas', 'Marca'], ['estados', 'Condição']],
+    ferramentas: [['subcategorias', 'Tipo de ferramenta'], ['tecnologias', 'Modelo'], ['marcas', 'Marca'], ['estados', 'Condição']],
+    acessorios: [['subcategorias', 'Tipo'], ['btus', 'Compatível com'], ['tecnologias', 'Característica'], ['marcas', 'Marca'], ['estados', 'Condição']],
+    '': [['marcas', 'Marca']]
+  };
+
+  const valorDe = {
+    subcategorias: (p) => (p.id_subcategoria != null ? String(p.id_subcategoria) : null),
+    btus: (p) => (p.btu ? String(p.btu) : null),
+    tecnologias: (p) => (p.tecnologia && p.tecnologia !== '-' ? p.tecnologia : null),
+    ciclos: (p) => (p.ciclo && p.ciclo !== '-' ? p.ciclo : null),
+    marcas: (p) => p.marca || null,
+    estados: (p) => p.estado || 'Novo'
+  };
+
+  const rotulo = {
+    subcategorias: (v) => (API.getCategoriasSync().flatMap((c) => c.subcategorias).find((s) => String(s.id) === String(v)) || {}).nome || v,
+    btus: (v) => `${Number(v).toLocaleString('pt-BR')} BTUs`
+  };
+  const labelDe = (chave, v) => (rotulo[chave] ? rotulo[chave](v) : v);
+
+  const catAtual = () => CATEGORIAS.find((c) => c.slug === state.categoria) || null;
+
+  function limparRamo() {
+    Object.keys(state.sel).forEach((k) => { state.sel[k] = []; });
+  }
+
+  // Produtos que passam pela categoria + busca + todos os filtros, exceto `ignorar`
+  function baseProdutos(ignorar) {
+    const cat = catAtual();
+    const termo = API.normalize(state.q || '');
+    return API.getProdutosSync().filter((p) => {
+      if (cat && p.id_categoria !== cat.id) return false;
+      if (termo && !API.normalize(`${p.nome} ${p.descricao} ${p.marca} ${p.tecnologia}`).includes(termo)) return false;
+      if (state.oferta && !(p.destaque || p.preco_antigo > p.preco)) return false;
+      if (ignorar !== 'distancia' && !naFaixa(p, state.distancia)) return false;
+      return Object.entries(state.sel).every(([k, vals]) => {
+        if (k === ignorar || !vals.length) return true;
+        const v = valorDe[k](p);
+        return v != null && vals.map(API.normalize).includes(API.normalize(v));
+      });
     });
   }
 
-  function checkedValues(name) {
-    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((i) => i.value);
+  function opcoesFacet(chave) {
+    const lista = baseProdutos(chave);
+    const contagem = new Map();
+    lista.forEach((p) => {
+      const v = valorDe[chave](p);
+      if (v != null) contagem.set(v, (contagem.get(v) || 0) + 1);
+    });
+    let opcoes = [...contagem.entries()].map(([valor, total]) => ({ valor, total }));
+    // "Tipo" mostra todas as subcategorias do nicho, mesmo sem produto no momento
+    if (chave === 'subcategorias' && catAtual()) {
+      opcoes = catAtual().subcategorias.map((s) => ({ valor: String(s.id), total: contagem.get(String(s.id)) || 0 }));
+    }
+    if (chave === 'btus') opcoes.sort((a, b) => Number(a.valor) - Number(b.valor));
+    else if (chave !== 'subcategorias') opcoes.sort((a, b) => b.total - a.total || String(a.valor).localeCompare(String(b.valor)));
+    // mantém visível o que já está marcado
+    state.sel[chave].forEach((v) => {
+      if (!opcoes.some((o) => API.normalize(o.valor) === API.normalize(v))) opcoes.push({ valor: v, total: 0 });
+    });
+    return opcoes;
+  }
+
+  /* Grupo "Distância de você": vem antes das categorias */
+  function distanciaHTML() {
+    if (!R) return '';
+    if (!regiao) {
+      return `
+        <div class="filter-group dist-group">
+          <h3>${UI.icon('pin')} Distância de você</h3>
+          <p class="tree-hint">Informe sua cidade para ver os vendedores mais próximos e o frete de cada peça.</p>
+          <button type="button" class="btn btn-soft btn-sm" data-regiao-open style="width:100%;justify-content:center">${UI.icon('pin')} Informar minha cidade</button>
+        </div>`;
+    }
+    const base = baseProdutos('distancia');
+    const opcoes = [{ id: '', label: 'Qualquer distância', total: base.length }]
+      .concat(R.FAIXAS.map((f) => ({ id: f.id, label: f.label, total: base.filter((p) => naFaixa(p, f.id)).length })));
+    return `
+      <div class="filter-group dist-group">
+        <h3>${UI.icon('pin')} Distância de você</h3>
+        <button type="button" class="dist-origem" data-regiao-open>Saindo de <strong>${UI.esc(R.nomeLocal(regiao))}</strong> · alterar</button>
+        ${opcoes.map((o) => `
+          <label class="filter-option ${o.total || state.distancia === o.id ? '' : 'is-empty'}">
+            <input type="radio" name="distancia" data-dist value="${o.id}" ${state.distancia === o.id ? 'checked' : ''}>
+            ${o.label} <span class="count">(${o.total})</span>
+          </label>`).join('')}
+      </div>`;
+  }
+
+  function renderFilterTree() {
+    const box = document.getElementById('filterTree');
+    if (!box) return;
+    const cat = catAtual();
+    const todos = API.getProdutosSync();
+
+    if (!cat) {
+      box.innerHTML = `${distanciaHTML()}
+        <div class="filter-group">
+          <h3>Categorias</h3>
+          <p class="tree-hint">Escolha uma categoria para ver filtros específicos.</p>
+          <div class="tree-cats">
+            ${CATEGORIAS.map((c) => {
+              const total = todos.filter((p) => p.id_categoria === c.id).length;
+              return `
+                <button type="button" class="tree-cat" data-tree-cat="${c.slug}">
+                  <span class="tree-cat-ico">${UI.icon(c.icone)}</span>
+                  <span class="tree-cat-name">${UI.esc(c.nome)}<small>${c.subcategorias.length} tipos</small></span>
+                  <span class="count">${total}</span>
+                  ${UI.icon('chevron', 'tree-chevron')}
+                </button>`;
+            }).join('')}
+          </div>
+        </div>
+        ${facetsHTML('')}`;
+      return;
+    }
+
+    const totalCat = todos.filter((p) => p.id_categoria === cat.id).length;
+    box.innerHTML = `${distanciaHTML()}
+      <div class="filter-group tree-open">
+        <button type="button" class="tree-back" data-tree-back>${UI.icon('chevron', 'tree-back-ico')} Todas as categorias</button>
+        <div class="tree-current">
+          <span class="tree-cat-ico">${UI.icon(cat.icone)}</span>
+          <span class="tree-cat-name">${UI.esc(cat.nome)}<small>${totalCat} produto(s) neste nicho</small></span>
+        </div>
+        <div class="tree-branch">${facetsHTML(cat.slug)}</div>
+      </div>`;
+  }
+
+  function facetsHTML(slug) {
+    return (FACETS[slug] || []).map(([chave, titulo]) => {
+      const opcoes = opcoesFacet(chave);
+      if (!opcoes.length) return '';
+      const marcado = (v) => state.sel[chave].some((x) => API.normalize(x) === API.normalize(v));
+      // "Tipo" em chips (é o próximo nível da árvore); o resto em checkbox
+      if (chave === 'subcategorias') {
+        return `
+          <div class="tree-facet">
+            <h4>${titulo}</h4>
+            <div class="tree-chips">
+              ${opcoes.map((o) => `
+                <label class="tree-chip ${marcado(o.valor) ? 'is-on' : ''} ${o.total ? '' : 'is-empty'}">
+                  <input type="checkbox" data-facet="${chave}" value="${UI.esc(o.valor)}" ${marcado(o.valor) ? 'checked' : ''} ${o.total || marcado(o.valor) ? '' : 'disabled'}>
+                  ${UI.esc(labelDe(chave, o.valor))} <span>${o.total}</span>
+                </label>`).join('')}
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="tree-facet">
+          <h4>${titulo}</h4>
+          ${opcoes.map((o) => `
+            <label class="filter-option ${o.total || marcado(o.valor) ? '' : 'is-empty'}">
+              <input type="checkbox" data-facet="${chave}" value="${UI.esc(o.valor)}" ${marcado(o.valor) ? 'checked' : ''}>
+              ${UI.esc(labelDe(chave, o.valor))} <span class="count">(${o.total})</span>
+            </label>`).join('')}
+        </div>`;
+    }).join('');
   }
 
   function readFilters() {
     return {
       q: state.q || undefined,
-      categoria: checkedValues('categoria')[0] || undefined,
-      marcas: checkedValues('marcas'),
-      btus: checkedValues('btus'),
-      tecnologias: checkedValues('tecnologias'),
-      ciclos: checkedValues('ciclos'),
+      categoria: state.categoria || undefined,
+      subcategorias: state.sel.subcategorias,
+      marcas: state.sel.marcas,
+      btus: state.sel.btus,
+      tecnologias: state.sel.tecnologias,
+      ciclos: state.sel.ciclos,
+      estados: state.sel.estados,
       oferta: state.oferta || undefined,
       precoMin: state.precoMin,
       precoMax: state.precoMax,
-      ordenacao: state.ordenacao
+      ordenacao: state.ordenacao === 'proximos' ? 'relevancia' : state.ordenacao
     };
   }
 
@@ -120,13 +273,12 @@
     if (state.oferta) push('oferta', '1', 'Ofertas do dia');
     if (state.favoritos) push('favoritos', '1', 'Meus favoritos');
 
-    const categoria = checkedValues('categoria')[0];
-    if (categoria) push('categoria', categoria, CAT_LABEL[categoria] || categoria);
-
-    checkedValues('marcas').forEach((v) => push('marcas', v, `Marca: ${v}`));
-    checkedValues('btus').forEach((v) => push('btus', v, `${Number(v).toLocaleString('pt-BR')} BTUs`));
-    checkedValues('tecnologias').forEach((v) => push('tecnologias', v, v));
-    checkedValues('ciclos').forEach((v) => push('ciclos', v, v));
+    if (state.distancia && R && regiao) {
+      const f = R.FAIXAS.find((x) => x.id === state.distancia);
+      if (f) push('distancia', state.distancia, f.label);
+    }
+    if (state.categoria) push('categoria', state.categoria, CAT_LABEL[state.categoria] || state.categoria);
+    Object.entries(state.sel).forEach(([k, vals]) => vals.forEach((v) => push(k, v, labelDe(k, v))));
 
     if (state.precoMin != null || state.precoMax != null) {
       const min = state.precoMin != null ? UI.money(state.precoMin) : 'R$ 0';
@@ -163,13 +315,19 @@
       if (shopTitle) shopTitle.textContent = `Busca por "${state.q}"`;
       if (title) title.textContent = 'Resultados da busca';
       if (sub) sub.textContent = 'Refine os resultados com os filtros ao lado.';
+    } else if (state.distancia && !state.categoria && R && regiao) {
+      const f = R.FAIXAS.find((x) => x.id === state.distancia);
+      if (shopTitle) shopTitle.textContent = 'Perto de você';
+      if (title) title.textContent = f ? f.label : 'Perto de você';
+      if (sub) sub.textContent = `Vendedores próximos de ${R.nomeLocal(regiao)}, do mais perto para o mais longe.`;
     } else if (state.oferta) {
       if (shopTitle) shopTitle.textContent = 'Ofertas do dia';
       if (title) title.textContent = 'Ofertas selecionadas';
       if (sub) sub.textContent = 'Produtos com desconto por tempo limitado.';
     } else {
-      const categoria = checkedValues('categoria')[0];
-      const nome = categoria ? CAT_LABEL[categoria] : 'Todos os produtos';
+      const subs = state.sel.subcategorias;
+      const nome = subs.length === 1 ? labelDe('subcategorias', subs[0])
+        : state.categoria ? CAT_LABEL[state.categoria] : 'Todos os produtos';
       if (shopTitle) shopTitle.textContent = nome;
       if (title) title.textContent = nome;
       if (sub) sub.textContent = 'Peças, equipamentos e ferramentas de climatização.';
@@ -209,7 +367,12 @@
       if (state.favoritos) {
         lista = lista.filter((p) => Store.Favoritos.has(p.id));
       }
+      if (state.distancia) lista = lista.filter((p) => naFaixa(p, state.distancia));
+      if (state.ordenacao === 'proximos') {
+        lista.sort((a, b) => (distDe(a) ?? 1e9) - (distDe(b) ?? 1e9) || a.preco - b.preco);
+      }
       updateHeading(lista.length);
+      renderFilterTree();
       renderActiveFilters();
       grid.innerHTML = lista.length ? lista.map(UI.productCard).join('') : emptyState();
       UI.syncFavButtons();
@@ -217,6 +380,39 @@
     } catch (err) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>Não foi possível carregar</h3><p>${UI.esc(err.message)}</p></div>`;
     }
+  }
+
+  async function loadPerto() {
+    const rail = document.getElementById('pertoRail');
+    if (!rail) return;
+    const titulo = document.getElementById('pertoTitle');
+    const sub = document.getElementById('pertoSub');
+    if (!R || !regiao) {
+      if (titulo) titulo.textContent = 'Peças perto de você';
+      if (sub) sub.textContent = 'Comprando de quem está perto, a peça chega mais rápido e o frete fica mais barato.';
+      rail.innerHTML = `
+        <div class="perto-cta">
+          <span class="perto-cta-ico">${UI.icon('pin')}</span>
+          <div>
+            <strong>Onde você está?</strong>
+            <p>Informe seu CEP ou cidade e mostramos os vendedores mais próximos, com distância e frete de cada peça.</p>
+          </div>
+          <button class="btn btn-buy" type="button" data-regiao-open>${UI.icon('pin')} Informar minha cidade</button>
+        </div>`;
+      return;
+    }
+    if (titulo) titulo.textContent = `Perto de você · ${R.nomeLocal(regiao)}`;
+    const lista = (await API.produtos({ ordenacao: 'relevancia' }))
+      .map((p) => ({ p, d: distDe(p) }))
+      .filter((x) => x.d != null && x.d <= 300)
+      .sort((a, b) => a.d - b.d || b.p.vendidos - a.p.vendidos)
+      .slice(0, 8)
+      .map((x) => x.p);
+    rail.innerHTML = lista.length
+      ? lista.map(UI.productCard).join('')
+      : `<div class="perto-cta"><span class="perto-cta-ico">${UI.icon('pin')}</span><div><strong>Ainda não há vendedores a até 300 km de ${UI.esc(R.nomeLocal(regiao))}</strong><p>Veja todos os produtos abaixo — o frete é calculado pela distância.</p></div></div>`;
+    UI.syncFavButtons();
+    UI.hydrateIcons(rail);
   }
 
   async function loadOfertas() {
@@ -235,7 +431,9 @@
     state.precoMin = null;
     state.precoMax = null;
     state.ordenacao = 'relevancia';
-    document.querySelectorAll('#filtersCard input[type="checkbox"]').forEach((i) => { i.checked = false; });
+    state.categoria = '';
+    state.distancia = '';
+    limparRamo();
     const min = document.getElementById('precoMin');
     const max = document.getElementById('precoMax');
     const sort = document.getElementById('sortSelect');
@@ -254,18 +452,50 @@
     });
 
     document.getElementById('filtersCard')?.addEventListener('change', (e) => {
-      const input = e.target;
-      if (!input.matches('input[type="checkbox"]')) return;
-      if (input.name === 'categoria' && input.checked) {
-        document.querySelectorAll('input[name="categoria"]').forEach((i) => {
-          if (i !== input) i.checked = false;
-        });
+      if (e.target.matches('[data-dist]')) {
+        state.distancia = e.target.value;
+        if (state.distancia && state.ordenacao === 'relevancia') {
+          state.ordenacao = 'proximos';
+          const sort = document.getElementById('sortSelect');
+          if (sort) sort.value = 'proximos';
+        }
+        syncUrl();
+        load(true);
+        return;
       }
-      load();
+      const input = e.target.closest('[data-facet]');
+      if (!input) return;
+      const lista = state.sel[input.dataset.facet];
+      const i = lista.findIndex((v) => API.normalize(v) === API.normalize(input.value));
+      if (input.checked && i < 0) lista.push(input.value);
+      if (!input.checked && i >= 0) lista.splice(i, 1);
+      syncUrl();
+      load(true);
+    });
+
+    // navegação na árvore de categorias
+    document.getElementById('filtersCard')?.addEventListener('click', (e) => {
+      const pick = e.target.closest('[data-tree-cat]');
+      if (pick) { escolherCategoria(pick.dataset.treeCat); return; }
+      if (e.target.closest('[data-tree-back]')) { escolherCategoria(''); }
     });
 
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-clear-filters]')) { clearAll(); return; }
+
+      // Links de categoria (atalhos, menu, banners): filtra aqui mesmo e desce até os produtos
+      const catLink = e.target.closest('a[href^="index.html?categoria="]');
+      if (catLink && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+        const url = new URL(catLink.href);
+        const slug = url.searchParams.get('categoria');
+        if (slug && CATEGORIAS.some((c) => c.slug === slug)) {
+          e.preventDefault();
+          document.querySelector('[data-menu-close]')?.click();
+          document.querySelector('.nav-dropdown.is-open')?.classList.remove('is-open');
+          filtrarCategoria(slug, url.searchParams.get('sub'));
+          return;
+        }
+      }
 
       if (e.target.closest('[data-apply-price]')) {
         const min = document.getElementById('precoMin');
@@ -299,27 +529,90 @@
           const max = document.getElementById('precoMax');
           if (min) min.value = '';
           if (max) max.value = '';
-        } else {
-          const input = document.querySelector(`input[name="${tipo}"][value="${CSS.escape(valor)}"]`);
-          if (input) input.checked = false;
+        } else if (tipo === 'distancia') {
+          state.distancia = '';
+        } else if (tipo === 'categoria') {
+          state.categoria = '';
+          limparRamo();
+        } else if (state.sel[tipo]) {
+          state.sel[tipo] = state.sel[tipo].filter((v) => API.normalize(v) !== API.normalize(valor));
         }
-        load();
+        syncUrl();
+        load(true);
       }
     });
   }
 
+  /* Rola até a lista de produtos, descontando o header fixo. */
+  function scrollToCatalogo() {
+    const alvo = document.getElementById('catalogo');
+    if (!alvo) return;
+    // se algum header ficar fixo no topo, desconta a altura dele
+    const fixo = [...document.querySelectorAll('#site-header, .site-header')].find((el) => {
+      const pos = getComputedStyle(el).position;
+      return (pos === 'fixed' || pos === 'sticky') && el.parentElement && el.parentElement.offsetHeight > el.offsetHeight + 50;
+    });
+    const visivel = fixo ? fixo.getBoundingClientRect().height + (parseFloat(getComputedStyle(fixo).top) || 0) : 0;
+    const offset = visivel + 16;
+    const top = alvo.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  function syncUrl() {
+    const qs = new URLSearchParams();
+    if (state.q) qs.set('q', state.q);
+    if (state.categoria) qs.set('categoria', state.categoria);
+    if (state.sel.subcategorias.length === 1) qs.set('sub', state.sel.subcategorias[0]);
+    if (state.oferta) qs.set('oferta', '1');
+    if (state.distancia) qs.set('dist', state.distancia);
+    const str = qs.toString();
+    history.replaceState({}, '', `index.html${str ? `?${str}` : ''}#catalogo`);
+  }
+
+  function marcarAtalhos() {
+    document.querySelectorAll('.quick-cat').forEach((a) => {
+      a.classList.toggle('is-active', !!state.categoria && new URL(a.href).searchParams.get('categoria') === state.categoria);
+    });
+  }
+
+  // Troca a categoria pela árvore (sem rolar a página)
+  function escolherCategoria(slug, sub) {
+    state.categoria = slug;
+    limparRamo();
+    if (sub) state.sel.subcategorias = [String(sub)];
+    marcarAtalhos();
+    syncUrl();
+    load(true);
+  }
+
+  /* Escolhe uma categoria (atalhos, menu, banners), filtra e desce até os produtos. */
+  async function filtrarCategoria(slug, sub) {
+    state.q = '';
+    state.oferta = false;
+    state.favoritos = false;
+    document.querySelectorAll('[data-search-form] input[name="q"]').forEach((i) => { i.value = ''; });
+    escolherCategoria(slug, sub);
+    scrollToCatalogo();
+  }
+
   function syncFromParams() {
-    const categoriaBox = document.querySelector(`input[name="categoria"][value="${state.categoria}"]`);
-    if (categoriaBox) categoriaBox.checked = true;
     document.querySelectorAll('[data-search-form] input[name="q"]').forEach((i) => { i.value = state.q; });
+    marcarAtalhos();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     initHero();
-    hydrateCounts();
     syncFromParams();
     bind();
     loadOfertas();
-    load();
+    loadPerto();
+    if (state.distancia && regiao) {
+      state.ordenacao = 'proximos';
+      const sort = document.getElementById('sortSelect');
+      if (sort) sort.value = 'proximos';
+    }
+    // Veio de outra página com uma categoria/busca? Mostra os produtos já filtrados.
+    const deveRolar = state.categoria || state.q || state.distancia || location.hash === '#catalogo';
+    load().then(() => { if (deveRolar) setTimeout(scrollToCatalogo, 80); });
   });
 })();

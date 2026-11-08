@@ -127,22 +127,7 @@
                 <p>Enviamos para todo o Brasil ou você pode retirar na loja.</p>
               </div>
             </div>
-            <label class="option-card is-selected">
-              <input type="radio" name="entrega" value="envio" checked>
-              <span>
-                <strong>Envio padrão</strong>
-                <span>${c.frete === 0 ? 'Frete grátis' : 'Frete calculado no resumo'} · 3 a 7 dias úteis</span>
-              </span>
-              <span class="chip option-tag">${c.frete === 0 ? 'Grátis' : money(Store.Cart.summary().frete)}</span>
-            </label>
-            <label class="option-card">
-              <input type="radio" name="entrega" value="retirada">
-              <span>
-                <strong>Retirar na loja</strong>
-                <span>Vendo Ar-Condicionado · Rua das Palmeiras, 245 · Sombrio/SC</span>
-              </span>
-              <span class="chip option-tag">Grátis</span>
-            </label>
+            <div id="entregaOptions">${entregaOptionsHTML()}</div>
           </section>
 
           <section class="card card-pad checkout-section">
@@ -208,6 +193,47 @@
 
         <aside class="summary-card" id="checkoutSummary">${summaryHTML()}</aside>
       </div>`;
+  }
+
+  /* Envio por distância (regiao.js): prazo do envio mais demorado e retirada só se o vendedor estiver perto */
+  function entregaOptionsHTML() {
+    const s = Store.Cart.summary();
+    const R = window.FrionexRegiao;
+    const envios = s.envios || [];
+    const prazos = envios.map((e) => e.prazo);
+    const prazo = prazos.length ? prazos[prazos.length - 1] : '3 a 7 dias úteis';
+    const maisLonge = envios.reduce((a, e) => (e.distancia != null && (!a || e.distancia > a.distancia) ? e : a), null);
+    const podeRetirar = envios.length > 0 && envios.every((e) => e.retirada);
+    const lojas = envios.map((e) => {
+      const c = R && R.cidadeDoVendedor(e.vendedor);
+      return `${UI.esc(e.vendedor.nome_loja || 'Vendedor')}${c ? ` · ${UI.esc(c.nome)}/${c.uf}` : ''}`;
+    }).join(' + ');
+    if (!podeRetirar && estado.entrega === 'retirada') estado.entrega = 'envio';
+    return `
+      <label class="option-card ${estado.entrega === 'envio' ? 'is-selected' : ''}">
+        <input type="radio" name="entrega" value="envio" ${estado.entrega === 'envio' ? 'checked' : ''}>
+        <span>
+          <strong>Envio ${envios.length > 1 ? `em ${envios.length} pacotes` : 'padrão'}</strong>
+          <span>${s.regiao ? `Para ${UI.esc(R.nomeLocal(s.regiao))} · chega em ${maisLonge ? maisLonge.prazo : prazo}` : 'Frete calculado no resumo · 3 a 7 dias úteis'}</span>
+        </span>
+        <span class="chip option-tag">${s.frete === 0 ? 'Grátis' : money(s.frete)}</span>
+      </label>
+      <label class="option-card ${estado.entrega === 'retirada' ? 'is-selected' : ''} ${podeRetirar ? '' : 'is-disabled'}">
+        <input type="radio" name="entrega" value="retirada" ${estado.entrega === 'retirada' ? 'checked' : ''} ${podeRetirar ? '' : 'disabled'}>
+        <span>
+          <strong>Retirar na loja</strong>
+          <span>${podeRetirar ? lojas : 'Disponível quando todos os vendedores estão a até 30 km de você'}</span>
+        </span>
+        <span class="chip option-tag">Grátis</span>
+      </label>`;
+  }
+
+  function usarEnderecoComoRegiao() {
+    const R = window.FrionexRegiao;
+    const end = enderecos.find((e) => Number(e.id) === Number(estado.enderecoId));
+    if (R && end && end.cep) R.definir({ cep: end.cep });
+    const box = document.getElementById('entregaOptions');
+    if (box) { box.innerHTML = entregaOptionsHTML(); UI.hydrateIcons(box); }
   }
 
   /* ---------------- atualizações ---------------- */
@@ -365,11 +391,13 @@
     document.addEventListener('change', (e) => {
       if (e.target.name === 'endereco') {
         estado.enderecoId = Number(e.target.value);
+        usarEnderecoComoRegiao();
         updateSummary();
         return;
       }
       if (e.target.name === 'entrega') {
         estado.entrega = e.target.value;
+        document.querySelectorAll('input[name="entrega"]').forEach((i) => i.closest('.option-card')?.classList.toggle('is-selected', i.checked));
         updateSummary();
         return;
       }
@@ -460,6 +488,11 @@
 
     enderecos = await API.enderecos(session.id);
     estado.enderecoId = enderecos.length ? Number(enderecos[0].id) : null;
+
+    // o frete passa a ser calculado para o endereço de entrega escolhido
+    const R = window.FrionexRegiao;
+    const end = enderecos.find((e) => Number(e.id) === Number(estado.enderecoId));
+    if (R && end && end.cep) R.definir({ cep: end.cep });
 
     root.innerHTML = layoutHTML();
     UI.hydrateIcons(root);

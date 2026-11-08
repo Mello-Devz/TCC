@@ -70,6 +70,65 @@
     });
   }
 
+  /* ---------------- recuperar senha ----------------
+     1) informa o e-mail → 2) recebe um código (aqui mostrado num "e-mail" simulado)
+     3) digita o código e a nova senha. */
+  function abrirRecuperacao(emailInicial, aoConcluir) {
+    const m = UI.modal('Recuperar senha', `
+      <div data-step="1">
+        <p style="font-size:13.5px;color:var(--muted);margin-bottom:12px">Informe o e-mail da sua conta. Enviaremos um código de 6 dígitos para criar uma nova senha.</p>
+        <div class="field">
+          <label for="recEmail">E-mail</label>
+          <input id="recEmail" type="email" placeholder="seu@email.com" value="${UI.esc(emailInicial || '')}">
+        </div>
+      </div>
+      <div data-step="2" hidden>
+        <div class="fake-mail">
+          <span>${UI.icon('mail')} <strong>E-mail recebido</strong> · Frionex</span>
+          <p>Seu código para redefinir a senha é <b data-codigo></b>. Ele vale por 10 minutos.</p>
+          <small>Protótipo: o e-mail é simulado aqui na tela.</small>
+        </div>
+        <div class="field">
+          <label for="recCodigo">Código</label>
+          <input id="recCodigo" inputmode="numeric" maxlength="6" placeholder="000000">
+        </div>
+        <div class="field">
+          <label for="recSenha">Nova senha</label>
+          <input id="recSenha" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+        </div>
+      </div>`, {
+      footer: `<button class="btn btn-outline" type="button" data-modal-close>Cancelar</button>
+               <button class="btn btn-grad" type="button" data-rec-next>${UI.icon('mail')} Enviar código</button>`
+    });
+    const btn = m.querySelector('[data-rec-next]');
+    let etapa = 1;
+    let emailConta = '';
+    setTimeout(() => m.querySelector('#recEmail').focus(), 50);
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        if (etapa === 1) {
+          const r = await API.solicitarCodigo(m.querySelector('#recEmail').value);
+          emailConta = r.email;
+          m.querySelector('[data-codigo]').textContent = r.codigo;
+          m.querySelector('[data-step="1"]').hidden = true;
+          m.querySelector('[data-step="2"]').hidden = false;
+          btn.innerHTML = `${UI.icon('check')} Salvar nova senha`;
+          etapa = 2;
+          setTimeout(() => m.querySelector('#recCodigo').focus(), 50);
+        } else {
+          await API.redefinirSenha(emailConta, m.querySelector('#recCodigo').value, m.querySelector('#recSenha').value);
+          UI.closeModal();
+          UI.toast('Senha alterada! Entre com a nova senha.');
+          aoConcluir(emailConta);
+        }
+      } catch (err) {
+        UI.toast(err.message, 'error');
+      }
+      btn.disabled = false;
+    });
+  }
+
   /* ---------------- login ---------------- */
   function initLogin() {
     const form = document.getElementById('loginForm');
@@ -90,6 +149,15 @@
         senha.value = '12345678';
         UI.toast(`Credenciais de ${tipo} preenchidas. Clique em "Entrar na minha conta".`, 'info');
         submit.focus();
+      });
+    });
+
+    document.querySelector('[data-forgot]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      abrirRecuperacao(email.value.trim(), (emailOk) => {
+        email.value = emailOk;
+        senha.value = '';
+        senha.focus();
       });
     });
 

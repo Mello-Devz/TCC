@@ -21,6 +21,13 @@
   let busca = '';
   let editando = null;   // produto em edição (ou null para novo)
   let fotoAtual = '';    // dataURL ou URL da foto escolhida
+  let aba = location.hash === '#vendas' ? 'vendas' : 'anuncios';
+  let vendas = [];
+  let filtroVendas = 'todas';
+  const R = window.FrionexRegiao;
+  const FLUXO = ['Aguardando pagamento', 'Em preparo', 'Enviado', 'Entregue'];
+  const statusClass = (st) => ({ 'Entregue': 'status-entregue', 'Enviado': 'status-enviado', 'Em preparo': 'status-preparo', 'Aguardando pagamento': 'status-aguardando', 'Cancelado': 'status-cancelado' }[st] || 'status-preparo');
+  const dataBR = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
   /* ---------- conta de comprador ---------- */
   if (session.tipo !== 'vendedor') {
@@ -87,6 +94,13 @@
           </div>`).join('')}
       </section>
 
+      <nav class="seller-tabs" role="tablist">
+        <button type="button" role="tab" class="${aba === 'anuncios' ? 'is-active' : ''}" data-aba="anuncios">${icon('package')} Meus anúncios <span>${loja.produtos.length}</span></button>
+        <button type="button" role="tab" class="${aba === 'vendas' ? 'is-active' : ''}" data-aba="vendas">${icon('cart')} Vendas <span>${vendas.length}</span>${pendentes() ? `<b class="tab-alert">${pendentes()} a enviar</b>` : ''}</button>
+        <a role="tab" href="mensagens.html">${icon('chat')} Mensagens</a>
+      </nav>
+
+      ${aba === 'vendas' ? vendasHTML() : `
       <section class="card card-pad seller-form-card" id="sellerForm" ${editando === undefined ? 'hidden' : ''}></section>
 
       <section class="card card-pad">
@@ -127,9 +141,105 @@
             <h3>${busca ? 'Nenhum anúncio encontrado' : 'Você ainda não tem anúncios'}</h3>
             <p>${busca ? 'Tente outro termo de busca.' : 'Clique em "Novo anúncio" para publicar o seu primeiro produto.'}</p>
           </div>`}
-      </section>`;
+      </section>`}`;
 
-    if (editando !== undefined) renderForm();
+    if (aba === 'anuncios' && editando !== undefined) renderForm();
+  }
+
+  /* ---------- vendas ---------- */
+  const pendentes = () => vendas.filter((v) => v.status === 'Aguardando pagamento' || v.status === 'Em preparo').length;
+
+  function proximaAcao(v) {
+    if (v.status === 'Aguardando pagamento') return { status: 'Em preparo', label: 'Confirmar pagamento', ico: 'check' };
+    if (v.status === 'Em preparo') return v.retirada
+      ? { status: 'Enviado', label: 'Pronto para retirada', ico: 'store' }
+      : { status: 'Enviado', label: 'Marcar como enviado', ico: 'truck' };
+    if (v.status === 'Enviado') return { status: 'Entregue', label: v.retirada ? 'Confirmar retirada' : 'Confirmar entrega', ico: 'check' };
+    return null;
+  }
+
+  function vendasHTML() {
+    const filtros = {
+      todas: () => true,
+      enviar: (v) => v.status === 'Aguardando pagamento' || v.status === 'Em preparo',
+      enviadas: (v) => v.status === 'Enviado',
+      concluidas: (v) => v.status === 'Entregue' || v.status === 'Cancelado'
+    };
+    const lista = vendas.filter(filtros[filtroVendas]);
+    const faturado = vendas.filter((v) => v.status !== 'Cancelado').reduce((t, v) => t + v.subtotal_loja, 0);
+    return `
+      <section class="card card-pad">
+        <div class="card-head">
+          <div>
+            <h2>Vendas recebidas</h2>
+            <p>${vendas.length} pedido(s) · ${money(faturado)} em vendas</p>
+          </div>
+          <div class="seller-chips">
+            ${[['todas', 'Todas'], ['enviar', 'A enviar'], ['enviadas', 'Enviadas'], ['concluidas', 'Concluídas']].map(([id, label]) => `
+              <button type="button" class="chip-btn ${filtroVendas === id ? 'is-active' : ''}" data-filtro-venda="${id}">${label} <span>${vendas.filter(filtros[id]).length}</span></button>`).join('')}
+          </div>
+        </div>
+        ${lista.length ? lista.map(vendaHTML).join('') : `
+          <div class="empty-state" style="box-shadow:none;border:0">
+            <span class="empty-ico">${icon('cart')}</span>
+            <h3>${vendas.length ? 'Nada por aqui' : 'Você ainda não recebeu pedidos'}</h3>
+            <p>${vendas.length ? 'Não há vendas neste filtro.' : 'Quando alguém comprar um anúncio seu, o pedido aparece aqui para você preparar e enviar.'}</p>
+          </div>`}
+      </section>`;
+  }
+
+  function vendaHTML(v) {
+    const acao = proximaAcao(v);
+    const destino = v.endereco && R ? R.localPorCep(v.endereco.cep) : null;
+    const origem = R ? R.cidadeDoVendedor(loja) : null;
+    const d = R && destino && origem ? R.distanciaKm(origem, destino) : null;
+    const passo = v.status === 'Cancelado' ? -1 : FLUXO.indexOf(v.status);
+    return `
+      <article class="venda">
+        <div class="venda-head">
+          <strong>Pedido #${v.id}</strong>
+          <span>${dataBR(v.data)}</span>
+          <span class="status ${statusClass(v.status)}">${esc(v.status)}</span>
+          <span class="venda-total">${money(v.subtotal_loja)}</span>
+        </div>
+        <div class="venda-body">
+          <div class="venda-itens">
+            ${v.itens.map((i) => `
+              <div class="venda-item">
+                <img src="${esc(i.produto.foto)}" alt="">
+                <span><strong>${esc(i.produto.nome)}</strong><small>Qtd. ${i.quantidade} · ${money(i.preco_unitario)} cada</small></span>
+              </div>`).join('')}
+          </div>
+          <div class="venda-cliente">
+            <span class="venda-label">Comprador</span>
+            <strong>${esc(v.comprador ? v.comprador.nome : 'Cliente')}</strong>
+            ${v.retirada
+              ? `<small>${icon('store')} Retira na loja</small>`
+              : v.endereco
+                ? `<small>${icon('pin')} ${esc(v.endereco.rua)}, ${esc(v.endereco.numero)} · ${esc(v.endereco.cidade)}/${esc(v.endereco.uf)}${d != null ? ` · ${R.formatarKm(d)}` : ''}</small>`
+                : ''}
+            <small>${icon('card')} ${esc(v.pagamento)}</small>
+            ${v.rastreio ? `<small>${icon('truck')} Rastreio: <b>${esc(v.rastreio)}</b></small>` : ''}
+          </div>
+        </div>
+        <div class="venda-steps">
+          ${FLUXO.map((st, i) => `<span class="${passo >= i ? 'is-done' : ''}">${esc(st)}</span>`).join('')}
+        </div>
+        <div class="venda-actions">
+          ${v.comprador ? `<a class="btn btn-soft btn-sm" href="mensagens.html?comprador=${v.comprador.id}&pedido=${v.id}">${icon('chat')} Falar com o comprador</a>` : ''}
+          ${v.status !== 'Entregue' && v.status !== 'Cancelado' ? `<button class="btn btn-ghost btn-sm" type="button" data-cancelar-venda="${v.id}">Cancelar</button>` : ''}
+          ${acao ? `<button class="btn btn-buy btn-sm" type="button" data-avancar="${v.id}" data-status="${acao.status}">${icon(acao.ico)} ${acao.label}</button>` : ''}
+        </div>
+      </article>`;
+  }
+
+  async function atualizarVenda(id, dados) {
+    try {
+      await API.atualizarVenda(session.id, id, dados);
+      vendas = await API.vendas(session.id);
+      render();
+      UI.toast(`Pedido #${id}: ${dados.status}.`);
+    } catch (err) { UI.toast(err.message, 'error'); }
   }
 
   function renderForm() {
@@ -281,11 +391,63 @@
 
   async function recarregar() {
     loja = await API.minhaLoja(session.id);
+    vendas = await API.vendas(session.id);
   }
 
   /* ---------- eventos ---------- */
   root.addEventListener('click', async (e) => {
-    if (e.target.closest('[data-new]')) return abrirForm(null);
+    const tab = e.target.closest('[data-aba]');
+    if (tab) {
+      aba = tab.dataset.aba;
+      history.replaceState({}, '', aba === 'vendas' ? '#vendas' : location.pathname);
+      render();
+      return;
+    }
+    const fv = e.target.closest('[data-filtro-venda]');
+    if (fv) { filtroVendas = fv.dataset.filtroVenda; render(); return; }
+
+    const av = e.target.closest('[data-avancar]');
+    if (av) {
+      const id = Number(av.dataset.avancar);
+      const status = av.dataset.status;
+      const venda = vendas.find((v) => v.id === id);
+      if (status === 'Enviado' && venda && !venda.retirada) {
+        const m = UI.modal(`Enviar pedido #${id}`, `
+          <div class="field">
+            <label for="rastreio">Código de rastreio</label>
+            <input id="rastreio" placeholder="Ex.: BR123456789SC" value="${esc(venda.rastreio || '')}" style="text-transform:uppercase">
+            <small style="color:var(--muted);font-size:11.5px">O comprador vê o código em "Meus pedidos".</small>
+          </div>`, {
+          footer: `<button class="btn btn-outline" type="button" data-modal-close>Cancelar</button>
+                   <button class="btn btn-buy" type="button" data-confirm-envio>${icon('truck')} Marcar como enviado</button>`
+        });
+        const input = m.querySelector('#rastreio');
+        setTimeout(() => input.focus(), 50);
+        m.querySelector('[data-confirm-envio]').addEventListener('click', async () => {
+          if (input.value.trim().length < 6) { UI.toast('Informe um código de rastreio válido.', 'error'); return; }
+          UI.closeModal();
+          await atualizarVenda(id, { status, rastreio: input.value });
+        });
+        return;
+      }
+      await atualizarVenda(id, { status });
+      return;
+    }
+    const cv = e.target.closest('[data-cancelar-venda]');
+    if (cv) {
+      const id = Number(cv.dataset.cancelarVenda);
+      const m = UI.modal(`Cancelar pedido #${id}?`, '<p style="font-size:14px">O comprador será avisado e o pedido não poderá mais ser enviado.</p>', {
+        footer: `<button class="btn btn-outline" type="button" data-modal-close>Voltar</button>
+                 <button class="btn btn-grad" type="button" data-confirm-cancel>Cancelar pedido</button>`
+      });
+      m.querySelector('[data-confirm-cancel]').addEventListener('click', async () => {
+        UI.closeModal();
+        await atualizarVenda(id, { status: 'Cancelado' });
+      });
+      return;
+    }
+
+    if (e.target.closest('[data-new]')) { aba = 'anuncios'; return abrirForm(null); }
     if (e.target.closest('[data-cancel]')) return fecharForm();
 
     const editBtn = e.target.closest('[data-edit]');
@@ -320,7 +482,12 @@
       const m = UI.modal('Editar loja', `
         <form class="form-grid" data-store-form style="grid-template-columns:1fr">
           <div class="field"><label for="sNome">Nome da loja</label><input id="sNome" name="nome_loja" required value="${esc(loja.nome_loja)}"></div>
-          <div class="field"><label for="sLocal">Localização</label><input id="sLocal" name="localizacao" value="${esc(loja.localizacao || '')}" placeholder="Cidade · UF"></div>
+          <div class="field"><label for="sLocal">Cidade da loja</label>
+            <select id="sLocal" name="cidade">
+              ${(window.FrionexRegiao ? window.FrionexRegiao.CIDADES : []).map((c) => `<option value="${c.id}" ${loja.cidade === c.id ? 'selected' : ''}>${esc(c.nome)} · ${c.uf}</option>`).join('')}
+            </select>
+            <small style="color:var(--muted);font-size:11.5px">Usada para mostrar a sua loja aos compradores mais próximos e calcular o frete.</small>
+          </div>
           <div class="field"><label for="sDesc">Descrição</label><textarea id="sDesc" name="descricao" rows="3">${esc(loja.descricao || '')}</textarea></div>
         </form>`, {
         footer: `<button class="btn btn-outline" type="button" data-modal-close>Cancelar</button>
@@ -331,7 +498,7 @@
         const nome = String(f.get('nome_loja') || '').trim();
         if (nome.length < 3) return UI.toast('Informe o nome da loja.', 'error');
         try {
-          await API.salvarLoja(session.id, { nome_loja: nome, localizacao: f.get('localizacao'), descricao: f.get('descricao') });
+          await API.salvarLoja(session.id, { nome_loja: nome, cidade: f.get('cidade'), descricao: f.get('descricao') });
           UI.closeModal();
           await recarregar();
           render();

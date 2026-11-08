@@ -50,8 +50,8 @@
               <a class="btn btn-buy btn-lg" href="index.html?categoria=pecas#catalogo">Ver peças em oferta</a>
             </div>
             <div class="promo-media promo-media-duo">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/HVAC_air_filter.webp/960px-HVAC_air_filter.webp" alt="Filtro de ar para climatização">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/A.c_remote.jpg/960px-A.c_remote.jpg" alt="Controle remoto de ar-condicionado">
+              <img src="assets/img/produtos/filtro.webp" alt="Filtro de ar para climatização">
+              <img src="assets/img/produtos/controle.jpg" alt="Controle remoto de ar-condicionado">
               <span class="promo-sticker">até -27%</span>
             </div>
           </article>
@@ -70,7 +70,7 @@
               <a class="btn btn-buy btn-lg" href="index.html?categoria=ferramentas#catalogo">Usar cupom</a>
             </div>
             <div class="promo-media">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/332nd_Expeditionary_CE_Squadron_HVAC-R_operations_%289305714%29.jpg/960px-332nd_Expeditionary_CE_Squadron_HVAC-R_operations_%289305714%29.jpg" alt="Técnico usando manifold com mangueiras de refrigeração">
+              <img src="assets/img/produtos/manifold.jpg" alt="Técnico usando manifold com mangueiras de refrigeração">
               <span class="promo-sticker">-10%</span>
             </div>
           </article>
@@ -124,6 +124,22 @@
         </div>
       </section>
 
+      <!-- ============ PERTO DE VOCÊ (regionalização) ============ -->
+      <section class="section perto-section" id="perto">
+        <div class="section-head">
+          <div>
+            <h2 id="pertoTitle">Perto de você</h2>
+            <p id="pertoSub">Peças de vendedores da sua região: chegam mais rápido e com frete menor.</p>
+          </div>
+          <a class="section-link" href="index.html?perto=1#catalogo">Ver todos por perto <span data-icon="arrow"></span></a>
+        </div>
+        <div class="rail" id="pertoRail" aria-live="polite">
+          <div class="skeleton" style="height:380px"></div>
+          <div class="skeleton" style="height:380px"></div>
+          <div class="skeleton" style="height:380px"></div>
+        </div>
+      </section>
+
       <!-- ============ CATÁLOGO COM FILTROS ============ -->
       <section class="section" id="catalogo">
         <div class="section-head">
@@ -143,46 +159,8 @@
               <button class="filters-clear" type="button" data-clear-filters>Limpar tudo</button>
             </div>
 
-            <div class="filter-group">
-              <h3>Categorias</h3>
-              <label class="filter-option"><input type="checkbox" name="categoria" value="ar-condicionado"> Ar-Condicionado <span class="count" data-count="categoria:ar-condicionado"></span></label>
-              <label class="filter-option"><input type="checkbox" name="categoria" value="pecas"> Peças <span class="count" data-count="categoria:pecas"></span></label>
-              <label class="filter-option"><input type="checkbox" name="categoria" value="ferramentas"> Ferramentas <span class="count" data-count="categoria:ferramentas"></span></label>
-              <label class="filter-option"><input type="checkbox" name="categoria" value="acessorios"> Acessórios <span class="count" data-count="categoria:acessorios"></span></label>
-            </div>
-
-            <div class="filter-group">
-              <h3>BTUs</h3>
-              <label class="filter-option"><input type="checkbox" name="btus" value="9000"> 9.000 BTUs <span class="count" data-count="btus:9000"></span></label>
-              <label class="filter-option"><input type="checkbox" name="btus" value="12000"> 12.000 BTUs <span class="count" data-count="btus:12000"></span></label>
-              <label class="filter-option"><input type="checkbox" name="btus" value="18000"> 18.000 BTUs <span class="count" data-count="btus:18000"></span></label>
-            </div>
-
-            <div class="filter-group">
-              <h3>Marca</h3>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="LG"> LG <span class="count" data-count="marca:LG"></span></label>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="Samsung"> Samsung <span class="count" data-count="marca:Samsung"></span></label>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="Midea"> Midea <span class="count" data-count="marca:Midea"></span></label>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="Philco"> Philco <span class="count" data-count="marca:Philco"></span></label>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="Frionex Parts"> Frionex Parts <span class="count" data-count="marca:Frionex Parts"></span></label>
-              <label class="filter-option"><input type="checkbox" name="marcas" value="ToolPro"> ToolPro <span class="count" data-count="marca:ToolPro"></span></label>
-            </div>
-
-            <div class="filter-group">
-              <h3>Tecnologia</h3>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="Dual Inverter"> Dual Inverter <span class="count" data-count="tecnologia:Dual Inverter"></span></label>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="WindFree AI"> WindFree AI <span class="count" data-count="tecnologia:WindFree AI"></span></label>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="Inverter"> Inverter <span class="count" data-count="tecnologia:Inverter"></span></label>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="Convencional"> Convencional <span class="count" data-count="tecnologia:Convencional"></span></label>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="Universal"> Universal <span class="count" data-count="tecnologia:Universal"></span></label>
-              <label class="filter-option"><input type="checkbox" name="tecnologias" value="Digital"> Digital <span class="count" data-count="tecnologia:Digital"></span></label>
-            </div>
-
-            <div class="filter-group">
-              <h3>Ciclo</h3>
-              <label class="filter-option"><input type="checkbox" name="ciclos" value="Só Frio"> Só Frio <span class="count" data-count="ciclo:Só Frio"></span></label>
-              <label class="filter-option"><input type="checkbox" name="ciclos" value="Frio/Calor"> Frio/Calor <span class="count" data-count="ciclo:Frio/Calor"></span></label>
-            </div>
+            <!-- Categorias em árvore: escolha a categoria e aparecem os filtros daquele nicho (home.js) -->
+            <div id="filterTree" class="filter-tree"></div>
 
             <div class="filter-group">
               <h3>Preço</h3>
@@ -209,6 +187,7 @@
                   <option value="maior-preco">Maior preço</option>
                   <option value="recentes">Mais recentes</option>
                   <option value="avaliacao">Melhor avaliação</option>
+                  <option value="proximos">Mais próximos de mim</option>
                 </select>
               </label>
             </div>
@@ -247,6 +226,7 @@
   <script src="assets/js/data.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/store.js"></script>
+  <script src="assets/js/regiao.js"></script>
   <script src="assets/js/ui.js"></script>
   <script src="assets/js/pages/home.js"></script>
 </body>

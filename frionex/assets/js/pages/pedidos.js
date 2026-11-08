@@ -66,6 +66,9 @@
               <span class="order-item-price">${UI.money(item.valor_total)}</span>
             </div>`).join('')}
         </div>
+        ${pedido.rastreio ? `
+          <div class="order-track">${UI.icon('truck')} Código de rastreio: <strong>${UI.esc(pedido.rastreio)}</strong>
+            <button type="button" class="link-btn" data-copy="${UI.esc(pedido.rastreio)}">copiar</button></div>` : ''}
         <div class="order-foot">
           <span class="order-total">Total <strong>${UI.money(pedido.total)}</strong></span>
           <div class="order-actions">
@@ -77,6 +80,7 @@
               <a class="btn btn-soft btn-sm" href="produto.html?id=${pedido.itens[0]?.id_produto || 2}#avaliacoes">
                 ${UI.icon('star')} Avaliar
               </a>` : ''}
+            ${vendedor ? `<a class="btn btn-soft btn-sm" href="mensagens.html?vendedor=${vendedor.id}&pedido=${pedido.id}">${UI.icon('chat')} Falar com a loja</a>` : ''}
             <button class="btn btn-soft btn-sm" type="button" data-rebuy="${pedido.id}">
               ${UI.icon('cart')} Comprar novamente
             </button>
@@ -165,6 +169,12 @@
 
   function bind() {
     document.addEventListener('click', (e) => {
+      const copy = e.target.closest('[data-copy]');
+      if (copy) {
+        navigator.clipboard?.writeText(copy.dataset.copy).catch(() => {});
+        UI.toast('Código de rastreio copiado.');
+        return;
+      }
       const filter = e.target.closest('[data-filter]');
       if (filter) {
         filtro = filter.dataset.filter;

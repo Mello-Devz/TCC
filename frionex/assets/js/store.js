@@ -75,9 +75,14 @@
       const itens = this.detailed();
       const subtotal = itens.reduce((soma, i) => soma + i.total, 0);
       const pix = itens.reduce((soma, i) => soma + i.total_pix, 0);
-      const frete = subtotal > 0 && subtotal < 300 ? 29.90 : 0;
+      // Frete por distância entre o comprador e cada vendedor (regiao.js)
+      const R = window.FrionexRegiao;
+      const cotacao = R && itens.length ? R.freteCarrinho(itens) : null;
+      const frete = cotacao ? cotacao.total : (subtotal > 0 && subtotal < 300 ? 29.90 : 0);
       return {
         itens,
+        envios: cotacao ? cotacao.envios : [],
+        regiao: cotacao ? cotacao.local : null,
         subtotal: Number(subtotal.toFixed(2)),
         pix: Number(pix.toFixed(2)),
         economia: Number((subtotal - pix).toFixed(2)),

@@ -14,6 +14,8 @@
     usuarios: 'frionex:usuarios',
     enderecos: 'frionex:enderecos',
     pedidos: 'frionex:pedidos',
+    pedidosStatus: 'frionex:pedidos-status',
+    mensagens: 'frionex:mensagens',
     avaliacoes: 'frionex:avaliacoes',
     cartoes: 'frionex:cartoes',
     sessao: 'frionex:sessao',
@@ -49,7 +51,7 @@
   /* ---------- migração de dados locais ----------
      Quando os dados-base mudam (ex.: nomes dos usuários demo), limpa
      overrides antigos salvos no navegador e atualiza a sessão. */
-  const DATA_VERSION = '2';
+  const DATA_VERSION = '3';
   (function migrar() {
     try {
       if (localStorage.getItem('frionex:versao') === DATA_VERSION) return;
@@ -113,6 +115,29 @@
     }));
   }
 
+  /* ---------- pedidos (com status atualizado pelo vendedor) ---------- */
+  function getPedidos() {
+    const overrides = read(KEYS.pedidosStatus, {});
+    return D.pedidos.concat(read(KEYS.pedidos, [])).map((p) => {
+      const o = overrides[p.id];
+      return o ? { ...p, ...o } : p;
+    });
+  }
+
+  /* ---------- conversas (chat) ---------- */
+  function getConversas() {
+    const salvas = read(KEYS.mensagens, null);
+    if (salvas) return salvas;
+    // conversa de exemplo entre o comprador demo e a loja do Maxwell
+    return [{
+      id: 1, id_vendedor: 1, id_comprador: 1, id_produto: 2, id_pedido: null,
+      mensagens: [
+        { de: 'comprador', texto: 'Boa tarde! O Samsung WindFree 12000 vem com o kit de instalação?', data: '2026-11-05T14:12:00', lida: true },
+        { de: 'vendedor', texto: 'Boa tarde, Miguel! Não vem, mas temos o kit de 3 metros aqui na loja. Se comprar os dois, entregamos juntos em Sombrio sem frete.', data: '2026-11-05T14:20:00', lida: false }
+      ]
+    }];
+  }
+
   /* ---------- vendedores ---------- */
   function getVendedores() {
     const extras = read(KEYS.vendedores, []);
@@ -160,6 +185,9 @@
     }
     if (filtros.subcategoria) {
       lista = lista.filter((p) => p.id_subcategoria === Number(filtros.subcategoria));
+    }
+    if (filtros.subcategorias && filtros.subcategorias.length) {
+      lista = lista.filter((p) => filtros.subcategorias.map(Number).includes(Number(p.id_subcategoria)));
     }
     if (filtros.q) {
       const termo = normalize(filtros.q);
@@ -275,7 +303,7 @@
           verificado: false,
           criado_em: new Date().toISOString().slice(0, 10),
           ultimo_login: 'agora', taxa_resposta: 100, avaliacoes: 0, produtos: 0,
-          localizacao: 'Sombrio · SC'
+          localizacao: 'Sombrio · SC', cidade: 'sombrio'
         };
         extras.push(loja);
         write(KEYS.vendedores, extras);
@@ -288,7 +316,14 @@
       await delay(200);
       const loja = await api.minhaLoja(idUsuario);
       const extras = read(KEYS.vendedores, []);
-      const campos = { nome_loja: dados.nome_loja, descricao: dados.descricao, localizacao: dados.localizacao };
+      const R = window.FrionexRegiao;
+      const cidade = dados.cidade && R ? R.cidadePorId(dados.cidade) : null;
+      const campos = {
+        nome_loja: dados.nome_loja,
+        descricao: dados.descricao,
+        cidade: cidade ? cidade.id : loja.cidade,
+        localizacao: cidade ? `${cidade.nome} · ${cidade.uf}` : loja.localizacao
+      };
       const idx = extras.findIndex((v) => v.id === loja.id);
       if (idx >= 0) extras[idx] = { ...extras[idx], ...campos };
       else extras.push({ id: loja.id, ...campos });
@@ -361,6 +396,168 @@
       return true;
     },
 
+    /* -------- vendas recebidas pelo vendedor -------- */
+    async vendas(idUsuario) {
+      await delay();
+      const loja = await api.minhaLoja(idUsuario);
+      const produtos = getProdutos();
+      const usuarios = getUsuarios();
+      const enderecos = D.enderecos.concat(read(KEYS.enderecos, []));
+      return getPedidos()
+        .map((p) => {
+          const itens = p.itens
+            .map((i) => ({ ...i, produto: produtos.find((x) => x.id === Number(i.id_produto)) }))
+            .filter((i) => i.produto && i.produto.id_vendedor === loja.id);
+          if (!itens.length) return null;
+          const comprador = D.compradores.find((c) => c.id === Number(p.id_comprador));
+          const usuario = usuarios.find((u) => Number(u.id) === Number(comprador ? comprador.id_usuario : p.id_comprador));
+          const endereco = enderecos.find((e) => Number(e.id) === Number(p.endereco_id))
+            || enderecos.find((e) => usuario && Number(e.usuario_id) === Number(usuario.id));
+          return {
+            ...p,
+            itens,
+            subtotal_loja: Number(itens.reduce((t, i) => t + Number(i.valor_total), 0).toFixed(2)),
+            comprador: usuario ? { id: usuario.id, nome: usuario.nome, telefone: usuario.telefone } : null,
+            endereco: endereco || null,
+            retirada: p.entrega === 'retirada'
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.id - a.id);
+    },
+
+    async atualizarVenda(idUsuario, idPedido, dados) {
+      await delay(200);
+      const vendas = await api.vendas(idUsuario);
+      const venda = vendas.find((v) => Number(v.id) === Number(idPedido));
+      if (!venda) throw new Error('Venda não encontrada.');
+      const FLUXO = ['Aguardando pagamento', 'Em preparo', 'Enviado', 'Entregue'];
+      if (dados.status && dados.status !== 'Cancelado' && !FLUXO.includes(dados.status)) throw new Error('Status inválido.');
+      if (dados.status === 'Enviado' && !String(dados.rastreio || venda.rastreio || '').trim() && !venda.retirada) {
+        throw new Error('Informe o código de rastreio para marcar como enviado.');
+      }
+      const overrides = read(KEYS.pedidosStatus, {});
+      const atual = overrides[idPedido] || {};
+      const historico = (atual.historico || venda.historico || []).concat({ status: dados.status, data: new Date().toISOString() });
+      overrides[idPedido] = {
+        ...atual,
+        status: dados.status || venda.status,
+        rastreio: dados.rastreio != null ? String(dados.rastreio).trim().toUpperCase() : (atual.rastreio || venda.rastreio || ''),
+        historico
+      };
+      write(KEYS.pedidosStatus, overrides);
+      return overrides[idPedido];
+    },
+
+    /* -------- chat comprador ↔ vendedor -------- */
+    conversasSync(idUsuario) {
+      const usuario = getUsuarios().find((u) => Number(u.id) === Number(idUsuario));
+      if (!usuario) return [];
+      const lojas = getVendedores();
+      const minhaLoja = usuario.tipo === 'vendedor' ? lojas.find((v) => Number(v.id_usuario) === Number(idUsuario)) : null;
+      const souVendedor = !!minhaLoja;
+      return getConversas()
+        .filter((c) => (souVendedor ? c.id_vendedor === minhaLoja.id : Number(c.id_comprador) === Number(idUsuario)))
+        .map((c) => {
+          const loja = lojas.find((v) => v.id === c.id_vendedor);
+          const comprador = getUsuarios().find((u) => Number(u.id) === Number(c.id_comprador));
+          const produto = c.id_produto ? getProdutos().find((p) => p.id === Number(c.id_produto)) : null;
+          const ultima = c.mensagens[c.mensagens.length - 1];
+          const eu = souVendedor ? 'vendedor' : 'comprador';
+          return {
+            ...c,
+            eu,
+            loja,
+            comprador: comprador ? { id: comprador.id, nome: comprador.nome } : null,
+            produto: produto ? enrichProduto(produto) : null,
+            titulo: souVendedor ? (comprador ? comprador.nome : 'Comprador') : (loja ? loja.nome_loja : 'Loja'),
+            ultima,
+            naoLidas: c.mensagens.filter((m) => m.de !== eu && !m.lida).length
+          };
+        })
+        .sort((a, b) => new Date(b.ultima ? b.ultima.data : 0) - new Date(a.ultima ? a.ultima.data : 0));
+    },
+
+    naoLidasSync(idUsuario) {
+      return api.conversasSync(idUsuario).reduce((t, c) => t + c.naoLidas, 0);
+    },
+
+    abrirConversa(idUsuario, { vendedor, comprador, produto, pedido }) {
+      const usuario = getUsuarios().find((u) => Number(u.id) === Number(idUsuario));
+      if (!usuario) throw new Error('Entre na sua conta para conversar.');
+      const lojas = getVendedores();
+      let idVendedor; let idComprador;
+      if (usuario.tipo === 'vendedor' && comprador) {
+        const loja = lojas.find((v) => Number(v.id_usuario) === Number(idUsuario));
+        if (!loja) throw new Error('Loja não encontrada.');
+        idVendedor = loja.id;
+        idComprador = Number(comprador);
+      } else {
+        idVendedor = Number(vendedor);
+        idComprador = Number(idUsuario);
+        const loja = lojas.find((v) => v.id === idVendedor);
+        if (!loja) throw new Error('Loja não encontrada.');
+        if (Number(loja.id_usuario) === Number(idUsuario)) throw new Error('Esta é a sua própria loja.');
+      }
+      const todas = read(KEYS.mensagens, null) || getConversas();
+      let conversa = todas.find((c) => c.id_vendedor === idVendedor && Number(c.id_comprador) === idComprador);
+      if (!conversa) {
+        conversa = {
+          id: nextId(todas), id_vendedor: idVendedor, id_comprador: idComprador,
+          id_produto: produto ? Number(produto) : null, id_pedido: pedido ? Number(pedido) : null,
+          mensagens: []
+        };
+        todas.push(conversa);
+      } else {
+        if (produto) conversa.id_produto = Number(produto);
+        if (pedido) conversa.id_pedido = Number(pedido);
+      }
+      write(KEYS.mensagens, todas);
+      return conversa.id;
+    },
+
+    enviarMensagem(idUsuario, idConversa, texto) {
+      const limpo = String(texto || '').trim().slice(0, 1000);
+      if (!limpo) throw new Error('Escreva uma mensagem.');
+      const todas = read(KEYS.mensagens, null) || getConversas();
+      const conversa = todas.find((c) => c.id === Number(idConversa));
+      if (!conversa) throw new Error('Conversa não encontrada.');
+      const loja = getVendedores().find((v) => v.id === conversa.id_vendedor);
+      const de = loja && Number(loja.id_usuario) === Number(idUsuario) ? 'vendedor' : 'comprador';
+      conversa.mensagens.push({ de, texto: limpo, data: new Date().toISOString(), lida: false });
+      write(KEYS.mensagens, todas);
+      return conversa;
+    },
+
+    /* Resposta automática da loja (protótipo): só na primeira mensagem do comprador */
+    respostaAutomatica(idConversa) {
+      const todas = read(KEYS.mensagens, null) || getConversas();
+      const conversa = todas.find((c) => c.id === Number(idConversa));
+      if (!conversa || conversa.mensagens.some((m) => m.de === 'vendedor')) return false;
+      const loja = getVendedores().find((v) => v.id === conversa.id_vendedor);
+      const produto = conversa.id_produto ? getProdutos().find((p) => p.id === conversa.id_produto) : null;
+      conversa.mensagens.push({
+        de: 'vendedor',
+        auto: true,
+        texto: `Olá! Aqui é da ${loja ? loja.nome_loja : 'loja'}. Recebemos sua mensagem${produto ? ` sobre "${produto.nome.split(' ').slice(0, 5).join(' ')}…"` : ''} e respondemos em instantes. 😊`,
+        data: new Date().toISOString(),
+        lida: false
+      });
+      write(KEYS.mensagens, todas);
+      return true;
+    },
+
+    marcarLidas(idUsuario, idConversa) {
+      const todas = read(KEYS.mensagens, null) || getConversas();
+      const conversa = todas.find((c) => c.id === Number(idConversa));
+      if (!conversa) return;
+      const loja = getVendedores().find((v) => v.id === conversa.id_vendedor);
+      const eu = loja && Number(loja.id_usuario) === Number(idUsuario) ? 'vendedor' : 'comprador';
+      let mudou = false;
+      conversa.mensagens.forEach((m) => { if (m.de !== eu && !m.lida) { m.lida = true; mudou = true; } });
+      if (mudou) write(KEYS.mensagens, todas);
+    },
+
     async avaliacoes(idProduto) {
       await delay();
       return getAvaliacoes(idProduto);
@@ -375,6 +572,33 @@
       );
       if (!user) throw new Error('E-mail ou senha inválidos. Confira os dados e tente novamente.');
       return buildSession(user);
+    },
+
+    /* -------- recuperação de senha (protótipo: o "e-mail" aparece na tela) -------- */
+    async solicitarCodigo(email) {
+      await delay(400);
+      const user = getUsuarios().find((u) => normalize(u.email) === normalize(email));
+      if (!user) throw new Error('Não encontramos uma conta com esse e-mail.');
+      const codigo = String(Math.floor(100000 + Math.random() * 900000));
+      write('frionex:reset', { email: user.email, codigo, expira: Date.now() + 10 * 60 * 1000 });
+      return { email: user.email, codigo };
+    },
+
+    async redefinirSenha(email, codigo, novaSenha) {
+      await delay(400);
+      const pedido = read('frionex:reset', null);
+      if (!pedido || normalize(pedido.email) !== normalize(email)) throw new Error('Solicite um novo código.');
+      if (Date.now() > pedido.expira) throw new Error('O código expirou. Solicite outro.');
+      if (String(codigo).trim() !== pedido.codigo) throw new Error('Código incorreto.');
+      if (String(novaSenha).length < 8) throw new Error('A nova senha precisa ter pelo menos 8 caracteres.');
+      const user = getUsuarios().find((u) => normalize(u.email) === normalize(email));
+      const extras = read(KEYS.usuarios, []);
+      const idx = extras.findIndex((u) => Number(u.id) === Number(user.id));
+      if (idx >= 0) extras[idx] = { ...extras[idx], senha: String(novaSenha) };
+      else extras.push({ id: user.id, senha: String(novaSenha) });
+      write(KEYS.usuarios, extras);
+      try { localStorage.removeItem('frionex:reset'); } catch (e) { /* ignore */ }
+      return true;
     },
 
     async cadastrar(dados) {
@@ -502,9 +726,7 @@
     async pedidos(idUsuario) {
       await delay();
       const compradorId = resolveCompradorId(idUsuario);
-      const extras = read(KEYS.pedidos, []);
-      return D.pedidos
-        .concat(extras)
+      return getPedidos()
         .filter((p) => Number(p.id_comprador) === Number(compradorId))
         .map((p) => ({
           ...p,
@@ -541,6 +763,7 @@
         data: new Date().toISOString().slice(0, 10),
         pagamento,
         endereco_id: endereco_id || null,
+        entrega: endereco_id ? 'envio' : 'retirada',
         status: pagamento === 'PIX' ? 'Aguardando pagamento' : 'Em preparo',
         /* Campos extras do protótipo: guardam o valor efetivamente pago. */
         frete: Number(frete || 0),
@@ -592,6 +815,7 @@
     getProdutosSync() { return getProdutos().map(enrichProduto); },
     getVendedoresSync() { return getVendedores(); },
     getUsuariosSync() { return getUsuarios(); },
+    getEnderecosSync() { return D.enderecos.concat(read(KEYS.enderecos, [])); },
     normalize
   };
 

@@ -88,6 +88,82 @@
       </div>`;
   }
 
+  /* ---------- regionalização ---------- */
+  function regiaoChip() {
+    const R = window.FrionexRegiao;
+    const local = R ? R.atual() : null;
+    return `<button type="button" class="regiao-chip" data-regiao-open>
+        ${icon('pin')} ${local ? `Enviar para <strong>${esc(R.nomeLocal(local))}</strong>` : '<strong>Informe sua cidade</strong> e veja vendedores perto de você'}
+        ${icon('chevron', 'chevron')}
+      </button>`;
+  }
+
+  function localProduto(p) {
+    const R = window.FrionexRegiao;
+    if (!R || !p.vendedor) return '';
+    const cidade = R.cidadeDoVendedor(p.vendedor);
+    if (!cidade) return '';
+    const d = R.distanciaProduto(p);
+    return `<span class="product-local ${d != null && d <= 100 ? 'is-near' : ''}">${icon('pin')} ${esc(cidade.nome)}/${cidade.uf}${d != null ? ` · ${R.formatarKm(d)}` : ''}</span>`;
+  }
+
+  function abrirRegiao() {
+    const R = window.FrionexRegiao;
+    if (!R) return;
+    const atual = R.atual();
+    const porUf = {};
+    R.CIDADES.forEach((c) => { (porUf[c.uf] = porUf[c.uf] || []).push(c); });
+    const m = modal('Onde você está?', `
+      <p style="font-size:13.5px;color:var(--muted);margin-bottom:14px">
+        Usamos a sua cidade para mostrar vendedores próximos, calcular a distância e o frete de cada peça.
+      </p>
+      <form class="regiao-form" data-regiao-form>
+        <div class="field">
+          <label for="regCep">CEP</label>
+          <input id="regCep" inputmode="numeric" maxlength="9" placeholder="00000-000" value="${atual && atual.cepInformado ? atual.cepInformado.replace(/(\d{5})(\d{3})/, '$1-$2') : ''}">
+        </div>
+        <div class="regiao-ou"><span>ou escolha a cidade</span></div>
+        <div class="field">
+          <label for="regCidade">Cidade</label>
+          <select id="regCidade">
+            <option value="">Selecione…</option>
+            ${Object.entries(porUf).map(([uf, lista]) => `
+              <optgroup label="${uf}">
+                ${lista.map((c) => `<option value="${c.id}" ${atual && atual.id === c.id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
+              </optgroup>`).join('')}
+          </select>
+        </div>
+      </form>`, {
+      footer: `${atual ? '<button class="btn btn-outline" type="button" data-regiao-clear>Limpar</button>' : ''}
+               <button class="btn btn-buy" type="button" data-regiao-save>${icon('pin')} Usar esta região</button>`
+    });
+    const cep = m.querySelector('#regCep');
+    const cidade = m.querySelector('#regCidade');
+    cep.addEventListener('input', () => {
+      const d = cep.value.replace(/\D/g, '').slice(0, 8);
+      cep.value = d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+      const local = R.localPorCep(d);
+      if (local && !local.aproximado) cidade.value = local.id;
+    });
+    cidade.addEventListener('change', () => { if (cidade.value) cep.value = ''; });
+    m.querySelector('[data-regiao-clear]')?.addEventListener('click', () => {
+      R.limpar();
+      closeModal();
+      location.reload();
+    });
+    m.querySelector('[data-regiao-save]').addEventListener('click', () => {
+      const digitos = cep.value.replace(/\D/g, '');
+      let local = null;
+      if (digitos.length === 8) local = R.definir({ cep: digitos });
+      else if (cidade.value) local = R.definir({ cidade: cidade.value });
+      if (!local) { toast('Informe um CEP válido ou escolha uma cidade.', 'error'); return; }
+      closeModal();
+      toast(`Mostrando vendedores perto de ${R.nomeLocal(local)}.`);
+      setTimeout(() => location.reload(), 500);
+    });
+    setTimeout(() => cep.focus(), 50);
+  }
+
   function productCard(p) {
     const off = discount(p);
     const badge = p.destaque ? 'Destaque' : off >= 10 ? `-${off}%` : '';
@@ -104,6 +180,7 @@
         </div>
         <div class="product-body">
           <span class="product-brand">${esc(p.marca)}${p.btu ? ` · ${p.btu} BTUs` : ''}</span>
+          ${localProduto(p)}
           <h3 class="product-title"><a href="produto.html?id=${p.id}">${esc(p.nome)}</a></h3>
           ${stars(p.nota, true, p.avaliacoes)}
           ${priceBlock(p)}
@@ -127,8 +204,8 @@
     return `
       <div class="top-strip">
         <div class="container top-strip-inner">
-          <span>${icon('truck')} Frete grátis acima de R$ 300 para SC e RS</span>
-          <span class="top-strip-right">${icon('shield')} Compra protegida Frionex</span>
+          ${regiaoChip()}
+          <span class="top-strip-right">${icon('truck')} Frete grátis acima de R$ 300 em até 600 km de você</span>
         </div>
       </div>
       <header class="site-header" id="siteHeader">
@@ -147,8 +224,8 @@
               ${icon('heart')}<span class="action-label">Favoritos</span>
               <span class="mini-badge" data-fav-count ${favs ? '' : 'hidden'}>${favs}</span>
             </a>
-            <button class="icon-btn header-action" type="button" data-chat aria-label="Chat">
-              ${icon('chat')}<span class="action-label">Chat</span>
+            <button class="icon-btn header-action" type="button" data-chat aria-label="Mensagens">
+              ${icon('chat')}<span class="action-label">Chat</span><span class="mini-badge chat-count" data-chat-count hidden>0</span>
             </button>
             ${!session
               ? `<a class="header-action sell-link" href="cadastro.html?tipo=vendedor">${icon('store')}<span class="action-label">Vender</span></a>`
@@ -170,6 +247,7 @@
                   ${session.tipo === 'vendedor' ? `<a href="vender.html">${icon('store')} Painel do vendedor</a>` : ''}
                   <a href="perfil.html">${icon('user')} Meu perfil</a>
                   <a href="pedidos.html">${icon('package')} Meus pedidos</a>
+                  <a href="mensagens.html">${icon('chat')} Mensagens <span class="mini-badge chat-count" data-chat-count hidden>0</span></a>
                   <a href="perfil.html#enderecos">${icon('location')} Endereços</a>
                   <button type="button" data-logout>${icon('logout')} Sair</button>
                 </div>
@@ -188,17 +266,28 @@
                 ${icon('menu', 'menu-ico')} Categorias ${icon('chevron', 'chevron')}
               </button>
               <div class="nav-dropdown-panel">
-                ${cats.map((c) => `
-                  <a href="index.html?categoria=${c.slug}">
-                    <span class="cat-ico">${icon(c.icone)}</span>
-                    <span><strong>${c.nome}</strong><small>${c.subcategorias.map((s) => s.nome).join(' · ')}</small></span>
-                  </a>`).join('')}
+                <div class="cat-tree">
+                  <div class="cat-tree-list" role="menu">
+                    ${cats.map((c, i) => `
+                      <a class="cat-tree-item ${i === 0 ? 'is-active' : ''}" href="index.html?categoria=${c.slug}" data-cat-branch="${c.slug}" role="menuitem">
+                        <span class="cat-ico">${icon(c.icone)}</span>
+                        <strong>${c.nome}</strong>
+                        ${icon('chevron', 'cat-tree-arrow')}
+                      </a>`).join('')}
+                  </div>
+                  ${cats.map((c, i) => `
+                    <div class="cat-tree-branch" data-branch="${c.slug}" ${i === 0 ? '' : 'hidden'}>
+                      <span class="cat-tree-title">${c.nome}</span>
+                      ${c.subcategorias.map((s) => `<a href="index.html?categoria=${c.slug}&sub=${s.id}">${s.nome}</a>`).join('')}
+                      <a class="cat-tree-all" href="index.html?categoria=${c.slug}">Ver tudo em ${c.nome} ${icon('arrow')}</a>
+                    </div>`).join('')}
+                </div>
               </div>
             </div>
             <a class="nav-link" href="index.html?oferta=1">Ofertas do dia</a>
             <a class="nav-link" href="index.html?categoria=pecas">Peças</a>
             <a class="nav-link" href="index.html?categoria=ferramentas">Ferramentas</a>
-            <a class="nav-link" href="index.html?categoria=acessorios">Por ambiente</a>
+            <a class="nav-link nav-link-perto" href="index.html?perto=1#catalogo">${icon('pin')} Perto de você</a>
             <a class="nav-link nav-link-help" href="#atendimento">Atendimento ao Cliente</a>
           </div>
         </nav>
@@ -224,6 +313,7 @@
             <a href="${session ? 'perfil.html' : 'login.html'}">${icon('user')} ${session ? 'Meu perfil' : 'Entrar / Cadastrar'}</a>
             ${!session ? `<a href="cadastro.html?tipo=vendedor">${icon('store')} Quero vender</a>`
               : session.tipo === 'vendedor' ? `<a href="vender.html">${icon('store')} Painel do vendedor</a>` : ''}
+            ${session ? `<a href="mensagens.html">${icon('chat')} Mensagens <span class="mini-badge chat-count" data-chat-count hidden>0</span></a>` : ''}
             <a href="#atendimento">${icon('chat')} Atendimento ao cliente</a>
           </nav>
         </div>
@@ -283,7 +373,7 @@
           </div>
         </div>
         <div class="container footer-bottom">
-          <p>© 2026 Frionex · Projeto Integrador IFC Sombrio · Miguel Mello e Maxwell Gonçalves Vieira Fernandes</p>
+          <p>© 2026 Frionex · Projeto Integrador IFC Sombrio · Miguel Paulo de Mello e Maxwell Gonçalves Vieira Fernandes</p>
           <div class="footer-legal">
             <a href="#" data-info="Termos de uso">Termos de uso</a>
             <a href="#" data-info="Política de privacidade">Privacidade</a>
@@ -403,9 +493,12 @@
         return;
       }
 
-      if (e.target.closest('[data-chat]')) {
+      const chat = e.target.closest('[data-chat]');
+      if (chat) {
         e.preventDefault();
-        toast('Chat iniciado! Em breve um vendedor responderá. (protótipo)', 'info');
+        const naLoja = /loja\.html$/.test(location.pathname);
+        const vendedor = chat.dataset.vendedor || (naLoja ? (new URLSearchParams(location.search).get('id') || 1) : null);
+        location.href = vendedor ? `mensagens.html?vendedor=${vendedor}` : 'mensagens.html';
         return;
       }
 
@@ -435,6 +528,7 @@
         document.body.classList.add('menu-open');
         return;
       }
+      if (e.target.closest('[data-regiao-open]')) { e.preventDefault(); abrirRegiao(); return; }
       if (e.target.closest('[data-menu-close]') || e.target.closest('[data-drawer-scrim]')) {
         document.body.classList.remove('menu-open');
         return;
@@ -502,19 +596,66 @@
     });
   }
 
+  // atualiza o "Enviar para" do topo quando a região muda sem recarregar
+  window.addEventListener('regiao:change', () => {
+    document.querySelectorAll('.regiao-chip').forEach((el) => { el.outerHTML = regiaoChip(); });
+  });
+
+  function bindCatTree() {
+    const ativar = (item) => {
+      const tree = item.closest('.cat-tree');
+      if (!tree) return;
+      tree.querySelectorAll('[data-cat-branch]').forEach((a) => a.classList.toggle('is-active', a === item));
+      tree.querySelectorAll('[data-branch]').forEach((b) => { b.hidden = b.dataset.branch !== item.dataset.catBranch; });
+    };
+    document.addEventListener('mouseover', (e) => {
+      const item = e.target.closest('[data-cat-branch]');
+      if (item) ativar(item);
+    });
+    document.addEventListener('focusin', (e) => {
+      const item = e.target.closest('[data-cat-branch]');
+      if (item) ativar(item);
+    });
+  }
+
+  function updateChatBadge() {
+    const API = window.FrionexAPI;
+    const sessao = API && API.sessao();
+    const total = sessao && API.naoLidasSync ? API.naoLidasSync(sessao.id) : 0;
+    document.querySelectorAll('[data-chat-count]').forEach((el) => {
+      el.textContent = total > 9 ? '9+' : String(total);
+      el.hidden = !total;
+    });
+  }
+
   function init() {
     const header = document.getElementById('site-header');
     const footer = document.getElementById('site-footer');
-    if (header) header.innerHTML = headerHTML();
+    if (header) {
+      header.innerHTML = headerHTML();
+      // topo fixo ao rolar: a faixa preta de cima sai da tela, o resto fica
+      const fixar = () => {
+        const faixa = header.querySelector('.top-strip');
+        const h = faixa ? faixa.offsetHeight : 0;
+        header.style.top = `-${h}px`;
+        document.documentElement.style.setProperty('--header-offset', `${header.offsetHeight - h}px`);
+      };
+      fixar();
+      window.addEventListener('resize', fixar);
+    }
     if (footer) footer.innerHTML = footerHTML();
     updateCartBadge();
+    updateChatBadge();
+    window.addEventListener('storage', (e) => { if (e.key === 'frionex:mensagens') updateChatBadge(); });
     syncFavButtons();
     bindGlobal();
+    bindCatTree();
     hydrateIcons(document);
     document.documentElement.classList.add('js-ready');
   }
 
   window.FrionexUI = {
+    abrirRegiao, localProduto, updateChatBadge,
     init, icon, stars, money, esc, initials, discount, priceBlock, productCard,
     toast, modal, closeModal, updateCartBadge, syncFavButtons, hydrateIcons
   };

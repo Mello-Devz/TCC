@@ -36,6 +36,28 @@
       </div>`;
   }
 
+  /* Um envio por vendedor, com distância e prazo (regiao.js) */
+  function enviosHTML(s) {
+    const R = window.FrionexRegiao;
+    if (!R) return '';
+    if (!s.regiao) {
+      return `<div class="summary-note">${UI.icon('pin')} <span>Informe seu CEP abaixo ou <button type="button" class="link-btn" data-regiao-open>escolha sua cidade</button> para calcular o frete pela distância.</span></div>`;
+    }
+    return `
+      <div class="envios">
+        <span class="envios-title">${UI.icon('pin')} Enviando para ${UI.esc(R.nomeLocal(s.regiao))} · <button type="button" class="link-btn" data-regiao-open>alterar</button></span>
+        ${s.envios.map((e) => {
+          const c = R.cidadeDoVendedor(e.vendedor);
+          return `
+            <div class="envio">
+              <span><strong>${UI.esc(e.vendedor.nome_loja || 'Vendedor')}</strong>
+                <small>${c ? `${UI.esc(c.nome)}/${c.uf}` : ''}${e.distancia != null ? ` · ${R.formatarKm(e.distancia)}` : ''} · ${e.prazo}</small></span>
+              <b>${e.valor === 0 ? 'Grátis' : money(e.valor)}</b>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
   function summaryHTML() {
     const s = Store.Cart.summary();
     const calc = Store.Cupom.calcular(s.subtotal, s.frete);
@@ -48,9 +70,10 @@
         <h2>Resumo do pedido</h2>
         <div class="summary-row"><span>Subtotal (${Store.Cart.count()} ${Store.Cart.count() === 1 ? 'item' : 'itens'})</span><strong>${money(s.subtotal)}</strong></div>
         <div class="summary-row">
-          <span>Frete</span>
+          <span>Frete${s.envios.length > 1 ? ` (${s.envios.length} envios)` : ''}</span>
           <strong>${calc.frete === 0 ? 'Grátis' : money(calc.frete)}</strong>
         </div>
+        ${enviosHTML(s)}
         ${calc.desconto > 0 ? `<div class="summary-row discount"><span>Cupom ${UI.esc(calc.cupom.codigo)}</span><strong>- ${money(calc.desconto)}</strong></div>` : ''}
         <div class="summary-total"><span>Total</span><strong>${money(total)}</strong></div>
         <div class="summary-pix">
@@ -66,7 +89,7 @@
         </form>
         ${calc.cupom ? `<div class="summary-row discount" style="padding-top:2px"><span>${UI.esc(calc.cupom.label)}</span><strong>ativo</strong></div>` : ''}
 
-        ${faltam > 0 && calc.frete > 0 ? `
+        ${!s.regiao && faltam > 0 && calc.frete > 0 ? `
           <div class="summary-note">${UI.icon('truck')} Faltam <strong style="color:var(--ink-2)">${money(faltam)}</strong> para ganhar frete grátis.</div>` : ''}
 
         <a class="btn btn-buy btn-block" href="checkout.html">${UI.icon('check')} Finalizar compra</a>
@@ -135,10 +158,15 @@
       result.innerHTML = '<span style="color:var(--danger)">Informe um CEP válido com 8 dígitos.</span>';
       return;
     }
-    const local = cep.startsWith('88');
-    result.innerHTML = local
-      ? '<strong>Frete grátis</strong> · entrega em 1 a 3 dias úteis para a região de Sombrio/SC.'
-      : '<strong>R$ 29,90</strong> · entrega em 3 a 7 dias úteis para todo o Brasil.';
+    const R = window.FrionexRegiao;
+    const local = R && R.definir({ cep });
+    if (!local) {
+      result.innerHTML = '<span style="color:var(--danger)">Não reconhecemos esse CEP.</span>';
+      return;
+    }
+    render();
+    const novo = document.querySelector('[data-shipping-result]');
+    if (novo) novo.innerHTML = `${UI.icon('check')} Frete calculado para <strong>${UI.esc(R.nomeLocal(local))}</strong> — veja o valor de cada envio no resumo.`;
   }
 
   function bind() {

@@ -12,6 +12,7 @@
   let product = null;
   let quantity = 1;
   let notaSelecionada = 0;
+  const R = window.FrionexRegiao;
 
   const dataBR = (iso) => {
     if (!iso) return '';
@@ -41,15 +42,57 @@
   function sellerHTML(p) {
     const v = p.vendedor;
     if (!v) return '';
+    const cidade = R ? R.cidadeDoVendedor(v) : null;
+    const d = R ? R.distanciaProduto(p) : null;
     return `
       <div class="seller-inline">
         <span class="avatar"><img src="${v.foto}" alt=""></span>
         <span>
           <strong>${UI.esc(v.nome_loja)}</strong>
-          <small>${UI.esc(v.localizacao)} · ${v.produtos} produtos</small>
+          <small>${UI.icon('pin')} ${cidade ? `${UI.esc(cidade.nome)}/${cidade.uf}` : UI.esc(v.localizacao || '')}${d != null ? ` · <b class="dist-tag ${d <= 100 ? 'is-near' : ''}">${d <= 15 ? 'na sua cidade' : `${R.formatarKm(d)} de você`}</b>` : ''}</small>
         </span>
-        <span class="badge-verified">${UI.icon('verified')} Verificado</span>
-        <a class="btn btn-soft btn-sm" href="loja.html">Ver loja</a>
+        ${v.verificado ? `<span class="badge-verified">${UI.icon('verified')} Verificado</span>` : ''}
+        <a class="btn btn-soft btn-sm" href="mensagens.html?vendedor=${v.id}&produto=${p.id}">${UI.icon('chat')} Conversar</a>
+        <a class="btn btn-soft btn-sm" href="loja.html?id=${v.id}">Ver loja</a>
+      </div>`;
+  }
+
+  /* Frete estimado para a região do comprador */
+  function freteResumoHTML(p) {
+    const local = R ? R.atual() : null;
+    if (!local) {
+      return `${UI.icon('truck')} <span>Frete calculado pela distância até o vendedor · <button type="button" class="link-btn" data-regiao-open>informe sua cidade</button></span>`;
+    }
+    const d = R.distanciaProduto(p, local);
+    const f = R.cotarFrete(d, p.preco);
+    return `${UI.icon('truck')} <span>Para <strong>${UI.esc(R.nomeLocal(local))}</strong>: ${f.valor === 0 ? '<strong class="txt-ok">Frete grátis</strong>' : `<strong>${UI.money(f.valor)}</strong>`} · chega em ${f.prazo}${f.retirada ? ' · <strong>retirada na loja disponível</strong>' : ''}</span>`;
+  }
+
+  /* Mesmo tipo de peça em outros vendedores, do mais perto ao mais longe */
+  function alternativasHTML(p) {
+    const local = R ? R.atual() : null;
+    const outros = API.getProdutosSync()
+      .filter((x) => x.id !== p.id && x.id_subcategoria === p.id_subcategoria && x.id_vendedor !== p.id_vendedor)
+      .map((x) => ({ x, d: R ? R.distanciaProduto(x, local) : null }))
+      .sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9) || a.x.preco - b.x.preco)
+      .slice(0, 3);
+    if (!outros.length) return '';
+    return `
+      <div class="alt-offers">
+        <h3>${UI.icon('pin')} Também vendido ${local ? 'perto de você' : 'por outros vendedores'}</h3>
+        ${outros.map(({ x, d }) => {
+          const c = R ? R.cidadeDoVendedor(x.vendedor) : null;
+          const f = R ? R.cotarFrete(d, x.preco) : null;
+          return `
+            <a class="alt-offer" href="produto.html?id=${x.id}">
+              <img src="${x.foto}" alt="">
+              <span class="alt-info">
+                <strong>${UI.esc(x.vendedor ? x.vendedor.nome_loja : '')}</strong>
+                <small>${c ? `${UI.esc(c.nome)}/${c.uf}` : ''}${d != null ? ` · ${R.formatarKm(d)}` : ''}${f && d != null ? ` · ${f.valor === 0 ? 'frete grátis' : `frete ${UI.money(f.valor)}`}` : ''}</small>
+              </span>
+              <span class="alt-price">${UI.money(x.preco)}</span>
+            </a>`;
+        }).join('')}
       </div>`;
   }
 
@@ -75,7 +118,7 @@
           <div class="price-main"><span>R$</span> ${UI.money(p.preco).replace('R$', '').trim()}</div>
           <span class="price-pix">${UI.money(p.pix)} à vista com <strong>7% OFF</strong> no PIX</span>
           <span class="price-installments">ou ${UI.money(p.preco)} em até ${p.parcelas}x de ${UI.money(p.parcela_valor)} sem juros</span>
-          <div class="price-extra">${UI.icon('truck')} Frete grátis acima de R$ 300 para SC e RS</div>
+          <div class="price-extra" data-frete-resumo>${freteResumoHTML(p)}</div>
         </div>
 
         <div class="qty-row">
@@ -99,9 +142,11 @@
         </form>
         <div class="shipping-result" data-shipping-result></div>
 
+        ${alternativasHTML(p)}
+
         <div class="product-benefits">
           <div class="benefit">${UI.icon('shield')}<span><strong>Compra protegida</strong>Seu pagamento só é liberado após a entrega.</span></div>
-          <div class="benefit">${UI.icon('truck')}<span><strong>Envio regional</strong>Entrega rápida com rastreamento.</span></div>
+          <div class="benefit">${UI.icon('truck')}<span><strong>Envio regional</strong>Frete e prazo pela distância até você.</span></div>
           <div class="benefit">${UI.icon('card')}<span><strong>Parcele sem juros</strong>Até ${p.parcelas}x no cartão.</span></div>
           <div class="benefit">${UI.icon('chat')}<span><strong>Fale com a loja</strong>Tire dúvidas antes de comprar.</span></div>
         </div>
@@ -295,10 +340,22 @@
       result.innerHTML = '<span style="color:var(--danger)">Informe um CEP válido com 8 dígitos.</span>';
       return;
     }
-    const local = cep.startsWith('88');
-    result.innerHTML = local
-      ? '<strong>Frete grátis</strong> · entrega em 1 a 3 dias úteis para a região de Sombrio/SC.'
-      : '<strong>R$ 29,90</strong> · entrega em 3 a 7 dias úteis para todo o Brasil.';
+    if (!R || !product) return;
+    const destino = R.localPorCep(cep);
+    if (!destino) {
+      result.innerHTML = '<span style="color:var(--danger)">Não reconhecemos esse CEP.</span>';
+      return;
+    }
+    const origem = R.cidadeDoVendedor(product.vendedor);
+    const d = R.distanciaKm(destino, origem);
+    const f = R.cotarFrete(d, product.preco * currentQty());
+    result.innerHTML = `
+      ${f.valor === 0 ? '<strong>Frete grátis</strong>' : `<strong>${UI.money(f.valor)}</strong>`} · chega em ${f.prazo}
+      <small style="display:block;margin-top:3px;color:var(--muted)">De ${origem ? `${UI.esc(origem.nome)}/${origem.uf}` : 'vendedor'} para ${UI.esc(R.nomeLocal(destino))}${d != null ? ` · cerca de ${d.toLocaleString('pt-BR')} km` : ''}${f.retirada ? ' · ou retire na loja' : ''}</small>`;
+    // guarda como região do comprador
+    R.definir({ cep });
+    const resumo = document.querySelector('[data-frete-resumo]');
+    if (resumo) { resumo.innerHTML = freteResumoHTML(product); UI.hydrateIcons(resumo); }
   }
 
   function paintStars(value) {
