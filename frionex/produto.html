@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Produto · Frionex</title>
+  <meta name="description" content="Detalhes do produto, avaliações e condições de compra na Frionex.">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main class="page-shell">
+    <div class="container">
+      <nav class="breadcrumb" id="breadcrumb" aria-label="Você está em"></nav>
+
+      <div class="product-detail" id="productDetail">
+        <div class="skeleton" style="aspect-ratio:1/1;border-radius:20px"></div>
+        <div>
+          <div class="skeleton" style="height:18px;width:40%"></div>
+          <div class="skeleton" style="height:32px;margin-top:14px"></div>
+          <div class="skeleton" style="height:32px;width:70%;margin-top:8px"></div>
+          <div class="skeleton" style="height:130px;margin-top:22px"></div>
+        </div>
+      </div>
+
+      <div class="tabs-card" id="tabsCard" hidden></div>
+
+      <section class="section" id="relatedSection" hidden>
+        <div class="section-head">
+          <div>
+            <h2>Quem viu, também comprou</h2>
+            <p>Outros itens da mesma categoria para completar o serviço.</p>
+          </div>
+          <a class="section-link" href="index.html">Ver catálogo <span data-icon="arrow"></span></a>
+        </div>
+        <div class="rail" id="relatedRail"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/pages/produto.js"></script>
+</body>
+</html>

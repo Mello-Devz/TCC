@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Criar conta · Frionex</title>
+  <meta name="description" content="Registre-se na Frionex como comprador ou vendedor e faça parte do marketplace de climatização.">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main class="page-shell">
+    <div class="container">
+      <div class="auth-page auth-page-solo">
+        <div class="auth-main">
+          <div class="auth-card">
+            <h1>Registre-se</h1>
+            <p>Escolha o tipo de conta e preencha seus dados.</p>
+
+            <div class="auth-tabs" role="tablist" aria-label="Tipo de conta">
+              <button class="auth-tab is-active" type="button" data-tipo="comprador" role="tab">Comprador</button>
+              <button class="auth-tab" type="button" data-tipo="vendedor" role="tab">Vendedor</button>
+            </div>
+
+            <form class="auth-form" id="registerForm" autocomplete="on" novalidate>
+              <input type="hidden" name="tipo" id="tipoConta" value="comprador">
+
+              <div class="auth-grid-2">
+                <div class="field">
+                  <label for="regNome">Nome completo</label>
+                  <input id="regNome" name="nome" type="text" placeholder="Seu nome" autocomplete="name" required>
+                </div>
+                <div class="field">
+                  <label for="regUsuario">Nome de usuário</label>
+                  <input id="regUsuario" name="nome_usuario" type="text" placeholder="ex.: miguelmello" autocomplete="username" required>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="regEmail">E-mail</label>
+                <div class="input-wrap">
+                  <span class="icon-slot" data-icon="mail"></span>
+                  <input id="regEmail" name="email" type="email" placeholder="seu@email.com" autocomplete="email" required>
+                </div>
+              </div>
+
+              <div class="auth-grid-2">
+                <div class="field">
+                  <label for="regCpf">CPF</label>
+                  <input id="regCpf" name="cpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" data-mask="cpf">
+                </div>
+                <div class="field">
+                  <label for="regTelefone">Telefone</label>
+                  <input id="regTelefone" name="telefone" type="tel" inputmode="numeric" maxlength="15" placeholder="(48) 99999-0000" data-mask="phone">
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="regNasc">Data de nascimento</label>
+                <input id="regNasc" name="data_nasc" type="date">
+              </div>
+
+              <div class="auth-grid-2">
+                <div class="field">
+                  <label for="regSenha">Senha</label>
+                  <div class="input-wrap">
+                    <span class="icon-slot" data-icon="lock"></span>
+                    <input id="regSenha" name="senha" type="password" minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required>
+                    <button class="icon-btn toggle-pass" type="button" data-toggle-pass="regSenha" aria-label="Mostrar senha">
+                      <span class="icon-slot" data-icon="eye"></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="regSenha2">Confirmar senha</label>
+                  <input id="regSenha2" name="senha_confirma" type="password" minlength="8" placeholder="Repita a senha" autocomplete="new-password" required>
+                </div>
+              </div>
+
+              <div id="sellerNote" class="auth-note" hidden>
+                Sua conta de vendedor será analisada pela equipe Frionex. Após a aprovação, você poderá publicar produtos e criar sua loja.
+              </div>
+
+              <div class="auth-note" style="margin-top:2px" id="addressNote">
+                <strong style="color:var(--ink-2)">Endereço de entrega (opcional)</strong>
+                <div class="auth-grid-2" style="margin-top:8px">
+                  <div class="field">
+                    <label for="regCep">CEP</label>
+                    <input id="regCep" name="cep" type="text" inputmode="numeric" maxlength="9" placeholder="00000-000" data-mask="cep">
+                  </div>
+                  <div class="field">
+                    <label for="regNumero">Número</label>
+                    <input id="regNumero" name="numero" type="text" placeholder="245">
+                  </div>
+                  <div class="field" style="grid-column:1/-1">
+                    <label for="regRua">Rua / Avenida</label>
+                    <input id="regRua" name="rua" type="text" placeholder="Rua das Palmeiras">
+                  </div>
+                  <div class="field">
+                    <label for="regBairro">Bairro</label>
+                    <input id="regBairro" name="bairro" type="text" placeholder="Centro">
+                  </div>
+                  <div class="field">
+                    <label for="regCidade">Cidade</label>
+                    <input id="regCidade" name="cidade" type="text" placeholder="Sombrio">
+                  </div>
+                  <div class="field">
+                    <label for="regUf">UF</label>
+                    <input id="regUf" name="uf" type="text" maxlength="2" placeholder="SC">
+                  </div>
+                </div>
+              </div>
+
+              <label class="auth-row" style="justify-content:flex-start">
+                <input type="checkbox" name="termos" id="regTermos" required>
+                <span>Li e aceito os <a href="#" data-info="Termos de uso">termos de uso</a> e a <a href="#" data-info="Política de privacidade">política de privacidade</a>.</span>
+              </label>
+
+              <button class="btn btn-grad btn-block auth-submit" type="submit">
+                <span class="icon-slot" data-icon="check"></span> Criar minha conta
+              </button>
+            </form>
+
+            <p class="auth-alt">Já tem uma conta? <a href="login.html">Entrar</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/pages/auth.js"></script>
+</body>
+</html>

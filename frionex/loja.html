@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Loja · Frionex</title>
+  <meta name="description" content="Conheça a loja Vendo Ar-Condicionado no marketplace Frionex: equipamentos, peças e ferramentas de climatização com vendedor verificado.">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main class="page-shell">
+    <div class="container">
+      <nav class="breadcrumb" aria-label="Você está em">
+        <a href="index.html">Início</a>
+        <span class="icon-slot" data-icon="chevron"></span>
+        <a href="index.html">Lojas</a>
+        <span class="icon-slot" data-icon="chevron"></span>
+        <span class="current">Vendo Ar-Condicionado</span>
+      </nav>
+
+      <div id="storeView">
+        <div class="store-cover">
+          <span class="store-cover-label">Loja oficial · climatização</span>
+        </div>
+
+        <div class="store-head">
+          <div class="store-head-top">
+            <div class="store-avatar">
+              <img src="assets/img/avatar-loja.svg" alt="Logo da loja Vendo Ar-Condicionado">
+            </div>
+            <div class="store-id">
+              <h1>
+                Vendo Ar-Condicionado
+                <span class="badge-verified"><span class="icon-slot" data-icon="verified"></span> Verificado</span>
+              </h1>
+              <p>Peças, equipamentos e ferramentas para climatização. Atendemos toda a região sul de Santa Catarina com envio para todo o Brasil.</p>
+              <div class="store-meta">
+                <span><span class="icon-slot" data-icon="pin"></span> Sombrio · SC</span>
+                <span><span class="icon-slot" data-icon="clock"></span> Último acesso há 3 horas</span>
+                <span><span class="icon-slot" data-icon="chat"></span> Responde 67% das mensagens</span>
+                <span><span class="icon-slot" data-icon="truck"></span> Envio em até 24h</span>
+              </div>
+            </div>
+            <div class="store-actions">
+              <button class="btn btn-outline" type="button" data-chat>
+                <span class="icon-slot" data-icon="chat"></span> Conversar
+              </button>
+              <button class="btn btn-grad" type="button" data-follow-store>
+                <span class="icon-slot" data-icon="heart"></span> Seguir loja
+              </button>
+            </div>
+          </div>
+
+          <div class="store-stats">
+            <div class="store-stat"><strong id="statProdutos">—</strong><span>produtos ativos</span></div>
+            <div class="store-stat"><strong id="statAvaliacoes">—</strong><span>avaliações</span></div>
+            <div class="store-stat"><strong id="statNota">—</strong><span>nota média</span></div>
+            <div class="store-stat"><strong id="statVendidos">—</strong><span>vendas realizadas</span></div>
+            <div class="store-stat"><strong>2027</strong><span>na Frionex desde</span></div>
+          </div>
+        </div>
+
+        <div class="store-tabs" role="tablist" aria-label="Seções da loja">
+          <button class="store-tab is-active" type="button" data-store-tab="todos" role="tab">Todos os produtos</button>
+          <button class="store-tab" type="button" data-store-tab="avaliados" role="tab">Mais bem avaliados</button>
+          <button class="store-tab" type="button" data-store-tab="ofertas" role="tab">Ofertas da loja</button>
+          <button class="store-tab" type="button" data-store-tab="sobre" role="tab">Sobre a loja</button>
+        </div>
+
+        <div id="storeGridWrap">
+          <div class="product-grid" id="storeGrid" aria-live="polite">
+            <div class="skeleton" style="height:380px"></div>
+            <div class="skeleton" style="height:380px"></div>
+            <div class="skeleton" style="height:380px"></div>
+            <div class="skeleton" style="height:380px"></div>
+          </div>
+        </div>
+
+        <div id="storeAbout" hidden>
+          <div class="card card-pad" style="margin-top:6px">
+            <div class="card-head">
+              <div>
+                <h2>Sobre a Vendo Ar-Condicionado</h2>
+                <p>Especialistas em climatização desde 2027, atendendo instaladores e clientes finais.</p>
+              </div>
+              <span class="badge-verified"><span class="icon-slot" data-icon="shield"></span> Compra protegida</span>
+            </div>
+            <div class="product-benefits">
+              <div class="benefit"><span class="icon-slot" data-icon="pin"></span><span><strong>Loja física</strong>Rua das Palmeiras, 245 · Centro, Sombrio/SC.</span></div>
+              <div class="benefit"><span class="icon-slot" data-icon="clock"></span><span><strong>Atendimento</strong>Segunda a sábado, das 8h às 18h.</span></div>
+              <div class="benefit"><span class="icon-slot" data-icon="truck"></span><span><strong>Entregas</strong>Envio para todo o Brasil, com frete grátis acima de R$ 300.</span></div>
+              <div class="benefit"><span class="icon-slot" data-icon="shield"></span><span><strong>Garantia</strong>Produtos novos com nota fiscal e garantia de fábrica.</span></div>
+            </div>
+            <div class="settings-list" style="margin-top:18px">
+              <div class="settings-row"><div><strong>Formas de pagamento</strong><span>PIX com 7% de desconto, cartão de crédito em até 8x e boleto.</span></div></div>
+              <div class="settings-row"><div><strong>Política de trocas</strong><span>7 dias para devolução por desistência e 90 dias para defeitos de fabricação.</span></div></div>
+              <div class="settings-row"><div><strong>Taxa de resposta</strong><span>67% das mensagens respondidas em até 24 horas.</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/pages/loja.js"></script>
+</body>
+</html>

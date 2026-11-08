@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Filtro de ar para split">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EEF4FF"/><stop offset="1" stop-color="#E9FBF5"/>
+    </linearGradient>
+    <linearGradient id="mesh" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F8FAFC"/><stop offset="1" stop-color="#CBD5E1"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0B1220" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" rx="56" fill="url(#bg)"/>
+  <circle cx="650" cy="160" r="120" fill="#FFFFFF" opacity=".5"/>
+  <ellipse cx="400" cy="646" rx="270" ry="26" fill="#0B1220" opacity=".09"/>
+  <g filter="url(#shadow)" transform="rotate(-6 400 400)">
+    <rect x="150" y="250" width="460" height="340" rx="30" fill="url(#mesh)" stroke="#94A3B8" stroke-width="4"/>
+    <rect x="184" y="284" width="392" height="272" rx="18" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="3"/>
+    <g stroke="#CBD5E1" stroke-width="3">
+      <path d="M214 304v232M244 304v232M274 304v232M304 304v232M334 304v232M364 304v232M394 304v232M424 304v232M454 304v232M484 304v232M514 304v232M544 304v232"/>
+      <path d="M200 334h360M200 364h360M200 394h360M200 424h360M200 454h360M200 484h360M200 514h360"/>
+    </g>
+    <rect x="150" y="250" width="460" height="340" rx="30" fill="none" stroke="#00C090" stroke-width="4" opacity=".55"/>
+    <g transform="translate(0 -14)">
+      <rect x="300" y="170" width="200" height="54" rx="27" fill="#0B1220"/>
+      <text x="400" y="205" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" letter-spacing="5" fill="#7BE3B5">FRIONEX</text>
+    </g>
+  </g>
+</svg>

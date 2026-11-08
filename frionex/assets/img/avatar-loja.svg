@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="Loja Vendo Ar-Condicionado">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1878F0"/><stop offset="1" stop-color="#00C090"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="56" fill="url(#g)"/>
+  <circle cx="160" cy="40" r="52" fill="#FFFFFF" opacity=".16"/>
+  <path d="M50 78h100l-10 84H60L50 78Z" fill="#FFFFFF" opacity=".95"/>
+  <path d="M75 78c0-18 11-30 25-30s25 12 25 30" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round"/>
+  <path d="M86 112c8 10 20 10 28 0" fill="none" stroke="#0B1220" stroke-width="8" stroke-linecap="round" opacity=".55"/>
+</svg>
